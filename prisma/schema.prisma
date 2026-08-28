@@ -1,0 +1,417 @@
+// Taekwondo Game Management System — data model
+// Provider is SQLite for zero-config local/venue deployment. SQLite has no native
+// enum support in Prisma, so enum-like columns are Strings whose allowed values are
+// defined (and type-checked) in src/lib/constants.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Event-wide configuration (single row, id = 1)
+// ---------------------------------------------------------------------------
+model EventSettings {
+  id                  Int      @id @default(1)
+  eventName           String   @default("P.R.S Nair Open School Taekwondo Championship")
+  edition             String   @default("2026")
+  organiser           String   @default("Sacred Heart School")
+  venue               String   @default("Sacred Heart School, Sports Complex")
+  startDate           DateTime
+  endDate             DateTime
+  registrationOpensAt DateTime
+  registrationClosesAt DateTime
+
+  // Age is computed against this date (WT convention: 31 Dec of the event year)
+  ageReferenceDate DateTime
+
+  // Money
+  feePerParticipant Int    @default(500) // in INR, whole rupees
+  currency          String @default("INR")
+
+  // "Champion School" weighted points
+  pointsGold   Int @default(5)
+  pointsSilver Int @default(3)
+  pointsBronze Int @default(1)
+
+  // Certificate signature block
+  signatory1Name  String @default("Nihal Singh")
+  signatory1Title String @default("Tournament Director")
+  signatory2Name  String @default("Principal")
+  signatory2Title String @default("Sacred Heart School")
+
+  // Publication switches (Super Admin controlled)
+  drawsPublished     Boolean @default(false)
+  resultsPublished   Boolean @default(true)
+  registrationLocked Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  name         String
+  role         String // SUPER_ADMIN | SCHOOL | REFEREE
+  active       Boolean @default(true)
+
+  // SCHOOL role → the school this login owns
+  schoolId String? @unique
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // REFEREE role → mat assignment for the day + certification grade
+  assignedMatId String?
+  assignedMat   Mat?    @relation(fields: [assignedMatId], references: [id], onDelete: SetNull)
+  certification String? // e.g. "WT Level 1", "State Referee"
+  isJury        Boolean @default(false) // Poomsae judging panel member
+
+  refereedBouts Bout[]          @relation("BoutReferee")
+  poomsaeScores PoomsaeScore[]
+  auditLogs     AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// Schools & participants
+// ---------------------------------------------------------------------------
+model School {
+  id               String  @id @default(cuid())
+  code             String  @unique // short code used on cards, e.g. SHS
+  name             String
+  boardAffiliation String? // CBSE / ICSE / State Board ...
+  address          String?
+  city             String?
+  state            String?
+  principalName    String?
+  coachName        String? // coach / teacher-in-charge
+  coachPhone       String?
+  contactEmail     String
+  contactPhone     String?
+
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  reviewedBy      String?
+  rejectionReason String?
+
+  paymentStatus String @default("UNPAID") // UNPAID | PARTIAL | PAID | WAIVED
+  amountDue     Int    @default(0)
+  amountPaid    Int    @default(0)
+  paymentRef    String?
+
+  user         User?
+  participants Participant[]
+  payments     Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model Participant {
+  id       String @id @default(cuid())
+  code     String @unique // human-facing Participant ID, e.g. TKD26-0042
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  name        String
+  gender      String // MALE | FEMALE
+  dob         DateTime
+  ageCategory String // YOUTH | CADET | JUNIOR  (auto-calculated from dob)
+  ageAtRef    Int // age on the event's ageReferenceDate, stored for auditability
+  weightKg    Float
+  beltGrade   String // e.g. "Yellow", "Blue", "Black 1st Dan"
+  personRole  String  @default("ATHLETE") // ATHLETE | COACH | OFFICIAL | VOLUNTEER
+
+  photoPath String?
+  email     String?
+  phone     String?
+
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  medicalNotes          String?
+
+  status String @default("PENDING") // PENDING | APPROVED | REJECTED | WITHDRAWN
+
+  // Weigh-in (QR scan at the venue)
+  weighInAt     DateTime?
+  weighInWeight Float?
+  checkedInAt   DateTime?
+
+  accreditationIssuedAt DateTime?
+  accreditationVersion  Int       @default(1) // bumped when details change → card reissued
+
+  entries      Entry[]
+  certificates Certificate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([ageCategory, gender])
+  @@index([status])
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  amount    Int
+  method    String // ONLINE | UPI | NEFT | CASH | CHEQUE
+  reference String?
+  note      String?
+  paidAt    DateTime @default(now())
+  recordedBy String?
+
+  @@index([schoolId])
+}
+
+// ---------------------------------------------------------------------------
+// Competition structure
+// ---------------------------------------------------------------------------
+model Mat {
+  id       String  @id @default(cuid())
+  name     String  @unique // "Mat 1"
+  venue    String?
+  active   Boolean @default(true)
+  sortOrder Int    @default(0)
+
+  bouts     Bout[]
+  officials User[]
+  slots     PoomsaeSession[]
+}
+
+model Category {
+  id    String @id @default(cuid())
+  code  String @unique // KYO-CADET-M-45
+  name  String // "Cadet Male -45 kg"
+  event String // KYORUGI | POOMSAE
+
+  ageCategory String // YOUTH | CADET | JUNIOR
+  gender      String // MALE | FEMALE | MIXED
+
+  // Kyorugi weight division (null for Poomsae)
+  weightMin   Float?
+  weightMax   Float?
+  weightLabel String?
+
+  // Poomsae specifics
+  poomsaeType String? // RECOGNISED | FREESTYLE | PAIR | TEAM
+
+  drawStatus String  @default("DRAFT") // DRAFT | GENERATED | PUBLISHED | LOCKED
+  finalized  Boolean @default(false)
+  finalizedAt DateTime?
+  sortOrder  Int     @default(0)
+  active     Boolean @default(true)
+
+  entries         Entry[]
+  bouts           Bout[]
+  results         Result[]
+  certificates    Certificate[]
+  poomsaeSessions PoomsaeSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([event, ageCategory, gender])
+}
+
+model Entry {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  seed   Int? // assigned at draw time
+  status String @default("ACTIVE") // ACTIVE | WITHDRAWN | DISQUALIFIED
+
+  // Poomsae aggregate (computed on finalise)
+  poomsaeFinalScore Float?
+  poomsaeRank       Int?
+
+  redBouts  Bout[] @relation("RedEntry")
+  blueBouts Bout[] @relation("BlueEntry")
+  wonBouts  Bout[] @relation("WinnerEntry")
+
+  poomsaeScores PoomsaeScore[]
+  result        Result?
+
+  createdAt DateTime @default(now())
+
+  @@unique([participantId, categoryId])
+  @@index([categoryId])
+}
+
+model Bout {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  round       Int // 1 = first round of the bracket
+  roundLabel  String // "Round of 16", "Quarter-final", "Semi-final", "Final", "Bronze"
+  position    Int // slot index within the round (0-based)
+  boutNumber  Int // event-wide running bout number, assigned at publish
+
+  redEntryId  String?
+  redEntry    Entry?  @relation("RedEntry", fields: [redEntryId], references: [id], onDelete: SetNull)
+  blueEntryId String?
+  blueEntry   Entry?  @relation("BlueEntry", fields: [blueEntryId], references: [id], onDelete: SetNull)
+
+  winnerEntryId String?
+  winnerEntry   Entry?  @relation("WinnerEntry", fields: [winnerEntryId], references: [id], onDelete: SetNull)
+
+  status     String  @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | BYE
+  resultType String? // POINTS | PTG | PUN | RSC | WITHDRAWAL | WALKOVER | DISQUALIFICATION
+  redScore   Int     @default(0)
+  blueScore  Int     @default(0)
+  redGamJeom Int     @default(0)
+  blueGamJeom Int    @default(0)
+
+  matId       String?
+  mat         Mat?      @relation(fields: [matId], references: [id], onDelete: SetNull)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  refereeId String?
+  referee   User?   @relation("BoutReferee", fields: [refereeId], references: [id], onDelete: SetNull)
+
+  // Bracket wiring
+  nextBoutId   String?
+  nextBout     Bout?   @relation("BracketFeed", fields: [nextBoutId], references: [id], onDelete: SetNull)
+  feederBouts  Bout[]  @relation("BracketFeed")
+  nextBoutSlot String? // RED | BLUE
+
+  disputeFlag Boolean @default(false)
+  disputeNote String?
+
+  rounds BoutRound[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId, round])
+  @@index([matId, scheduledAt])
+  @@index([status])
+}
+
+model BoutRound {
+  id      String @id @default(cuid())
+  boutId  String
+  bout    Bout   @relation(fields: [boutId], references: [id], onDelete: Cascade)
+  roundNo Int // 1, 2, 3, 4 (golden point)
+
+  redPoints   Int @default(0)
+  bluePoints  Int @default(0)
+  redGamJeom  Int @default(0)
+  blueGamJeom Int @default(0)
+
+  winner    String? // RED | BLUE | TIE
+  createdAt DateTime @default(now())
+
+  @@unique([boutId, roundNo])
+}
+
+model PoomsaeSession {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  matId      String?
+  mat        Mat?     @relation(fields: [matId], references: [id], onDelete: SetNull)
+  scheduledAt DateTime?
+  status     String   @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED
+
+  @@index([categoryId])
+}
+
+model PoomsaeScore {
+  id      String @id @default(cuid())
+  entryId String
+  entry   Entry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  judgeId String
+  judge   User   @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  accuracy     Float // out of 4.0
+  presentation Float // out of 6.0
+  total        Float // accuracy + presentation, out of 10.0
+  note         String?
+
+  submittedAt DateTime @default(now())
+
+  @@unique([entryId, judgeId])
+  @@index([entryId])
+}
+
+model Result {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  entryId    String   @unique
+  entry      Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  position Int // 1,2,3 (two bronzes both = 3), 0 = participation only
+  medal    String? // GOLD | SILVER | BRONZE
+  score    Float? // Poomsae final score
+
+  createdAt DateTime @default(now())
+
+  @@index([categoryId])
+  @@index([medal])
+}
+
+// ---------------------------------------------------------------------------
+// Certificates
+// ---------------------------------------------------------------------------
+model Certificate {
+  id     String @id @default(cuid())
+  certNo String @unique // PRS26-C-000123
+
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  type     String // PARTICIPATION | WINNER
+  position Int? // 1,2,3 for WINNER
+  medal    String?
+
+  issuedAt  DateTime  @default(now())
+  emailedAt DateTime?
+  emailTo   String?
+  revoked   Boolean   @default(false)
+
+  @@index([participantId])
+  @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail — who changed what (dispute resolution, transparency)
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action     String // e.g. SCHOOL_APPROVED, DRAW_GENERATED, BOUT_RESULT
+  entityType String
+  entityId   String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

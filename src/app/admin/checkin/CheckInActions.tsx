@@ -1,0 +1,55 @@
+'use client';
+
+import { useActionState } from 'react';
+import { checkInParticipant, recordWeighIn, type AdminState } from '@/actions/admin';
+import { SubmitButton } from '@/components/SubmitButton';
+import { FormMessage } from '@/components/FormMessage';
+import { Field } from '@/components/ui';
+
+export function CheckInActions({
+  code,
+  alreadyCheckedIn,
+  declaredWeight,
+}: {
+  code: string;
+  alreadyCheckedIn: boolean;
+  declaredWeight: number;
+}) {
+  const [checkInState, checkInAction] = useActionState<AdminState, FormData>(checkInParticipant, null);
+  const [weighInState, weighInAction] = useActionState<AdminState, FormData>(recordWeighIn, null);
+
+  return (
+    <div className="space-y-4">
+      <FormMessage state={checkInState} />
+      <FormMessage state={weighInState} />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <form action={checkInAction}>
+          <input type="hidden" name="code" value={code} />
+          <SubmitButton className="btn-primary" pendingLabel="Checking in…">
+            {alreadyCheckedIn ? 'Check in again' : 'Check in'}
+          </SubmitButton>
+        </form>
+      </div>
+
+      <form action={weighInAction} className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="code" value={code} />
+        <Field label="Weigh-in (kg)" name="weight" hint={`Declared: ${declaredWeight} kg`}>
+          <input
+            id="weight"
+            name="weight"
+            type="number"
+            step="0.1"
+            min="0"
+            required
+            className="input w-32"
+            placeholder={String(declaredWeight)}
+          />
+        </Field>
+        <SubmitButton className="btn-ghost" pendingLabel="Recording…">
+          Record weigh-in
+        </SubmitButton>
+      </form>
+    </div>
+  );
+}

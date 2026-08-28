@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-surface-sunk text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-tkd-red/15;
+  }
+}
+
+@layer components {
+  /* ---- Surfaces ---- */
+  .card {
+    @apply rounded-lg border border-surface-line bg-white shadow-card;
+  }
+  .card-pad {
+    @apply p-5;
+  }
+  .card-head {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-surface-line px-5 py-4;
+  }
+  .card-title {
+    @apply text-sm font-semibold tracking-tight text-ink;
+  }
+  .card-sub {
+    @apply mt-0.5 text-xs text-ink-muted;
+  }
+
+  /* ---- Type ---- */
+  .page-title {
+    @apply text-xl font-semibold tracking-tight text-ink sm:text-2xl;
+  }
+  .page-sub {
+    @apply mt-1 max-w-3xl text-sm leading-relaxed text-ink-soft;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted;
+  }
+  .hint {
+    @apply mt-1 text-xs leading-relaxed text-ink-muted;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted;
+  }
+
+  /* ---- Controls ---- */
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded-md border border-surface-line bg-white px-3 py-2 text-sm text-ink
+           placeholder:text-ink-muted/70 focus:border-tkd-red focus:outline-none focus:ring-2 focus:ring-tkd-red/15
+           disabled:cursor-not-allowed disabled:bg-surface-sunk disabled:text-ink-muted;
+  }
+  .select {
+    @apply appearance-none pr-9;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236b7785'%3E%3Cpath d='M4.5 6.5 8 10l3.5-3.5z'/%3E%3C/svg%3E");
+    background-size: 16px;
+    background-position: right 0.6rem center;
+    background-repeat: no-repeat;
+  }
+  .textarea {
+    @apply min-h-[80px] resize-y;
+  }
+  .checkbox {
+    @apply h-4 w-4 rounded border-surface-line text-tkd-red focus:ring-tkd-red/30;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium
+           transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-tkd-red text-white hover:bg-tkd-red/90 focus:ring-tkd-red/40;
+  }
+  .btn-dark {
+    @apply btn bg-ink text-white hover:bg-ink/90 focus:ring-ink/30;
+  }
+  .btn-ghost {
+    @apply btn border border-surface-line bg-white text-ink-soft hover:bg-surface-sunk hover:text-ink focus:ring-ink/10;
+  }
+  .btn-quiet {
+    @apply btn text-ink-muted hover:bg-surface-sunk hover:text-ink focus:ring-ink/10;
+  }
+  .btn-danger {
+    @apply btn border border-tkd-red/25 bg-white text-tkd-red hover:bg-tkd-red/5 focus:ring-tkd-red/25;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  /* ---- Tables ---- */
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+  .table thead th {
+    @apply whitespace-nowrap border-b border-surface-line bg-surface-sunk/60 px-3 py-2.5 text-left
+           text-[11px] font-semibold uppercase tracking-wide text-ink-muted;
+  }
+  .table tbody td {
+    @apply border-b border-surface-line/70 px-3 py-2.5 align-middle text-ink-soft;
+  }
+  .table tbody tr:hover td {
+    @apply bg-surface-sunk/40;
+  }
+  .table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .num {
+    @apply font-mono text-[13px] tabular-nums;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+  }
+  .badge-neutral { @apply badge bg-surface-sunk text-ink-soft; }
+  .badge-green   { @apply badge bg-emerald-50 text-emerald-700; }
+  .badge-amber   { @apply badge bg-amber-50 text-amber-700; }
+  .badge-red     { @apply badge bg-red-50 text-tkd-red; }
+  .badge-blue    { @apply badge bg-blue-50 text-tkd-blue; }
+  .badge-gold    { @apply badge bg-amber-100 text-amber-800; }
+  .badge-silver  { @apply badge bg-slate-100 text-slate-600; }
+  .badge-bronze  { @apply badge bg-orange-100 text-orange-800; }
+
+  /* ---- Nav ---- */
+  .nav-link {
+    @apply flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-ink-soft
+           transition-colors hover:bg-surface-sunk hover:text-ink;
+  }
+  .nav-link-active {
+    @apply bg-tkd-red/[0.08] text-tkd-red hover:bg-tkd-red/[0.1] hover:text-tkd-red;
+  }
+
+  /* ---- Notices ---- */
+  .notice {
+    @apply rounded-md border px-3.5 py-3 text-sm leading-relaxed;
+  }
+  .notice-info  { @apply notice border-blue-200 bg-blue-50 text-blue-900; }
+  .notice-warn  { @apply notice border-amber-200 bg-amber-50 text-amber-900; }
+  .notice-error { @apply notice border-red-200 bg-red-50 text-red-900; }
+  .notice-ok    { @apply notice border-emerald-200 bg-emerald-50 text-emerald-900; }
+
+  /* ---- Stat tiles ---- */
+  .stat {
+    @apply rounded-lg border border-surface-line bg-white px-4 py-3.5;
+  }
+  .stat-value {
+    @apply mt-1 text-2xl font-semibold tabular-nums tracking-tight text-ink;
+  }
+  .stat-label {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-ink-muted;
+  }
+}
+
+/* Bracket connector lines */
+.bracket-col > .bracket-slot::after {
+  content: '';
+  position: absolute;
+  right: -1.25rem;
+  top: 50%;
+  width: 1.25rem;
+  height: 1px;
+  background: #e3e6ea;
+}
+.bracket-col:last-child > .bracket-slot::after {
+  display: none;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border-color: #ccc; }
+}
