@@ -23,6 +23,8 @@
     "postcss": "8.5.26"
   },
   "dependencies": {
+    "@libsql/client": "0.8.1",
+    "@prisma/adapter-libsql": "6.1.0",
     "@prisma/client": "6.1.0",
     "bcryptjs": "2.4.3",
     "jose": "5.9.6",

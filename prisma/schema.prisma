@@ -4,7 +4,10 @@
 // defined (and type-checked) in src/lib/constants.ts.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // Lets db.ts hand the client a libSQL driver adapter in production (Turso) while
+  // local dev keeps using the plain file:./dev.db connection — no adapter needed there.
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
