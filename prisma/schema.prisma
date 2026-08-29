@@ -9,8 +9,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled (PgBouncer transaction mode) connection — what the running app uses.
+  url       = env("DATABASE_URL")
+  // Session-mode connection, used only by the Prisma CLI (db push/migrate) — the
+  // pooled transaction-mode URL can't run schema DDL.
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------

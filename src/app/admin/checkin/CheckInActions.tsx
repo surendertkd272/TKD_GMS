@@ -10,10 +10,12 @@ export function CheckInActions({
   code,
   alreadyCheckedIn,
   declaredWeight,
+  phone,
 }: {
   code: string;
   alreadyCheckedIn: boolean;
   declaredWeight: number;
+  phone: string | null;
 }) {
   const [checkInState, checkInAction] = useActionState<AdminState, FormData>(checkInParticipant, null);
   const [weighInState, weighInAction] = useActionState<AdminState, FormData>(recordWeighIn, null);
@@ -30,6 +32,9 @@ export function CheckInActions({
             {alreadyCheckedIn ? 'Check in again' : 'Check in'}
           </SubmitButton>
         </form>
+        <span className="text-xs text-ink-muted">
+          {phone ? `Texts a confirmation to ${phone}.` : 'No phone on file — no confirmation text will be sent.'}
+        </span>
       </div>
 
       <form action={weighInAction} className="flex flex-wrap items-end gap-3">

@@ -24,5 +24,9 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     env: { DATABASE_URL: TEST_DATABASE_URL },
     globalSetup: ['./src/test/global-setup.ts'],
+    // DB-backed test files share one Postgres `test` schema and each resets it in
+    // beforeEach — running files in parallel lets one file's reset wipe rows another
+    // file is mid-test with. Small suite, so serial files cost little.
+    fileParallelism: false,
   },
 });

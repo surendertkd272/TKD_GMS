@@ -60,6 +60,7 @@ export default async function AdminCheckInPage({
                 rows={[
                   ['Category', `${AGE_CATEGORY_SHORT[participant.ageCategory as AgeCategory] ?? participant.ageCategory} · ${participant.gender === 'MALE' ? 'M' : 'F'}`],
                   ['Belt grade', participant.beltGrade],
+                  ['Phone', participant.phone || 'Not on file'],
                   ['Declared weight', `${participant.weightKg} kg`],
                   ['Divisions', participant.entries.map((e) => e.category.name).join(', ') || '—'],
                   ['Checked in', participant.checkedInAt ? fmtDateTime(participant.checkedInAt) : 'Not yet'],
@@ -76,6 +77,7 @@ export default async function AdminCheckInPage({
                 code={participant.code}
                 alreadyCheckedIn={Boolean(participant.checkedInAt)}
                 declaredWeight={participant.weightKg}
+                phone={participant.phone}
               />
             </div>
           </Card>

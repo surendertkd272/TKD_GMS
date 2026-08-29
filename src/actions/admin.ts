@@ -529,6 +529,14 @@ export async function checkInParticipant(_prev: AdminState, formData: FormData):
     detail: `${participant.name} (${participant.code})`,
   });
 
+  if (participant.phone) {
+    await sendSms({
+      to: participant.phone,
+      channel: 'auto',
+      body: `${participant.name}, you're checked in for the championship. Head to your mat when called.`,
+    });
+  }
+
   revalidatePath('/admin/checkin');
   return { ok: true, message: `${participant.name} (${participant.code}) checked in.` };
 }
@@ -554,6 +562,14 @@ export async function recordWeighIn(_prev: AdminState, formData: FormData): Prom
     entityId: participant.id,
     detail: `${participant.name} (${participant.code}) weighed ${weight}kg, declared ${participant.weightKg}kg`,
   });
+
+  if (participant.phone) {
+    await sendSms({
+      to: participant.phone,
+      channel: 'auto',
+      body: `${participant.name}, your weigh-in is recorded: ${weight}kg.`,
+    });
+  }
 
   revalidatePath('/admin/checkin');
 
