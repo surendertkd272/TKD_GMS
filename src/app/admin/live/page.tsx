@@ -19,7 +19,7 @@ export default async function AdminLivePage({
   await requireAdmin();
   const params = await searchParams;
 
-  const [mats, disputes, inProgress, upcoming, poomsaePending, selected] = await Promise.all([
+  const [mats, disputes, inProgress, upcoming, unscheduled, poomsaePending, selected] = await Promise.all([
     db.mat.findMany({
       where: { active: true },
       include: {
@@ -49,6 +49,7 @@ export default async function AdminLivePage({
     }),
     db.bout.count({ where: { status: 'IN_PROGRESS' } }),
     db.bout.count({ where: { status: 'SCHEDULED' } }),
+    db.bout.count({ where: { status: 'SCHEDULED', matId: null } }),
     db.category.findMany({
       where: { event: 'POOMSAE', finalized: false, entries: { some: { poomsaeScores: { some: {} } } } },
       include: { _count: { select: { entries: true } } },
@@ -90,6 +91,17 @@ export default async function AdminLivePage({
           <Stat label="Completed" value={completed} />
           <Stat label="Flagged for review" value={disputes.length} />
         </div>
+
+        {unscheduled > 0 && (
+          <Notice kind="info">
+            {unscheduled} bout{unscheduled === 1 ? ' is' : 's are'} ready but not yet assigned a mat or
+            time — that&apos;s why the mats below look empty.{' '}
+            <Link href="/admin/schedule" className="font-medium underline">
+              Go to Schedule &amp; mats
+            </Link>{' '}
+            to assign them.
+          </Notice>
+        )}
 
         {disputes.length > 0 && (
           <Card

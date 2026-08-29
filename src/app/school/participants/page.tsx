@@ -27,6 +27,7 @@ export default async function ParticipantsPage({
   });
 
   const total = await db.participant.count({ where: { schoolId: school.id } });
+  const missingPhotoCount = await db.participant.count({ where: { schoolId: school.id, photoPath: null } });
 
   return (
     <>
@@ -59,6 +60,15 @@ export default async function ParticipantsPage({
                 {w}
               </span>
             ))}
+          </Notice>
+        )}
+
+        {missingPhotoCount > 0 && (
+          <Notice kind="warn">
+            {missingPhotoCount} participant{missingPhotoCount === 1 ? '' : 's'} missing a photo — the
+            accreditation card prints an empty photo box without one. Photos can&apos;t come through the
+            CSV upload; open each participant&apos;s <span className="font-medium">Edit</span> page below to
+            add one.
           </Notice>
         )}
 

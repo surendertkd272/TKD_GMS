@@ -12,7 +12,14 @@ export function DrawControls({ generatedCount }: { generatedCount: number }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="Generate every draw" subtitle="Runs across all active categories that have entries.">
+      <Card
+        title={
+          <span className="flex items-center gap-2">
+            <span className="step-badge">1</span> Generate every draw
+          </span>
+        }
+        subtitle="Runs across all active categories that have entries."
+      >
         <form action={genAction} className="space-y-4">
           <FormMessage state={genState} />
 
@@ -38,7 +45,12 @@ export function DrawControls({ generatedCount }: { generatedCount: number }) {
       </Card>
 
       <Card
-        title="Publish draws"
+        className={generatedCount === 0 ? 'opacity-60' : ''}
+        title={
+          <span className="flex items-center gap-2">
+            <span className="step-badge">2</span> Publish draws
+          </span>
+        }
         subtitle="Makes brackets visible to schools and the public page, and closes registration."
       >
         <form action={pubAction} className="space-y-4">
@@ -53,6 +65,7 @@ export function DrawControls({ generatedCount }: { generatedCount: number }) {
           <SubmitButton
             className="btn-primary"
             pendingLabel="Publishing…"
+            disabled={generatedCount === 0}
             confirm="Publish all generated draws and lock registration?"
           >
             Publish &amp; lock registration

@@ -81,7 +81,7 @@ export default async function PublicHome() {
             </Link>
           </div>
 
-          <dl className="mt-12 grid gap-x-8 gap-y-6 border-t border-white/10 pt-8 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-white/10 pt-6 sm:mt-12 sm:gap-x-8 sm:gap-y-6 sm:pt-8 lg:grid-cols-4">
             {[
               ['Venue', settings.venue],
               ['Dates', `${fmtDate(settings.startDate)} – ${fmtDate(settings.endDate)}`],

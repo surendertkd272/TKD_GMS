@@ -132,6 +132,10 @@
   .badge-silver  { @apply badge bg-slate-100 text-slate-600; }
   .badge-bronze  { @apply badge bg-orange-100 text-orange-800; }
 
+  .step-badge {
+    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white;
+  }
+
   /* ---- Nav ---- */
   .nav-link {
     @apply flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-ink-soft
