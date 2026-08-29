@@ -18,7 +18,14 @@ export default async function AdminParticipantsPage({
   const [participants, schools, stats] = await Promise.all([
     db.participant.findMany({
       where: {
-        ...(params.q ? { OR: [{ name: { contains: params.q } }, { code: { contains: params.q } }] } : {}),
+        ...(params.q
+          ? {
+              OR: [
+                { name: { contains: params.q, mode: 'insensitive' } },
+                { code: { contains: params.q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
         ...(params.cat ? { ageCategory: params.cat } : {}),
         ...(params.gender ? { gender: params.gender } : {}),
         ...(params.school ? { schoolId: params.school } : {}),

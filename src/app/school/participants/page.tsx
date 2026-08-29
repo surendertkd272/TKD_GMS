@@ -18,7 +18,7 @@ export default async function ParticipantsPage({
   const participants = await db.participant.findMany({
     where: {
       schoolId: school.id,
-      ...(params.q ? { name: { contains: params.q } } : {}),
+      ...(params.q ? { name: { contains: params.q, mode: 'insensitive' } } : {}),
       ...(params.cat ? { ageCategory: params.cat } : {}),
       ...(params.role ? { personRole: params.role } : {}),
     },

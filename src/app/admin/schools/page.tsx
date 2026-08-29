@@ -18,7 +18,7 @@ export default async function AdminSchoolsPage({
   const schools = await db.school.findMany({
     where: {
       ...(params.status ? { status: params.status } : {}),
-      ...(params.q ? { name: { contains: params.q } } : {}),
+      ...(params.q ? { name: { contains: params.q, mode: 'insensitive' } } : {}),
     },
     include: {
       _count: { select: { participants: true } },

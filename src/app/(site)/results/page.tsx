@@ -50,7 +50,7 @@ export default async function PublicResultsPage({
     }),
     params.q
       ? db.participant.findMany({
-          where: { name: { contains: params.q }, status: 'APPROVED' },
+          where: { name: { contains: params.q, mode: 'insensitive' }, status: 'APPROVED' },
           include: {
             school: { select: { code: true, name: true } },
             entries: { include: { category: true, result: true } },

@@ -1,17 +1,15 @@
 // Taekwondo Game Management System — data model
-// Provider is SQLite for zero-config local/venue deployment. SQLite has no native
-// enum support in Prisma, so enum-like columns are Strings whose allowed values are
-// defined (and type-checked) in src/lib/constants.ts.
+// Provider is Postgres (Supabase) so serverless deploys (Vercel) can reach a
+// persistent database. Enum-like columns are still plain Strings whose allowed
+// values are defined (and type-checked) in src/lib/constants.ts, kept that way
+// so this schema stays a straightforward lift from its original SQLite form.
 
 generator client {
-  provider        = "prisma-client-js"
-  // Lets db.ts hand the client a libSQL driver adapter in production (Turso) while
-  // local dev keeps using the plain file:./dev.db connection — no adapter needed there.
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

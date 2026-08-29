@@ -10,7 +10,7 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "rm -f prisma/dev.db && prisma db push && tsx prisma/seed.ts",
+    "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "setup": "prisma generate && prisma db push && tsx prisma/seed.ts",
     "test": "vitest run",
@@ -23,8 +23,6 @@
     "postcss": "8.5.26"
   },
   "dependencies": {
-    "@libsql/client": "0.8.1",
-    "@prisma/adapter-libsql": "6.1.0",
     "@prisma/client": "6.1.0",
     "bcryptjs": "2.4.3",
     "jose": "5.9.6",
