@@ -228,6 +228,16 @@ async function main() {
   console.log('→ Seeding Taekwondo GMS\n');
 
   const { adminEmail, adminPassword } = await seedPlatformAdmin();
+
+  // Production wants only the Super Admin — real events are created through
+  // /admin/events/new, not seeded.
+  if (process.env.SEED_ADMIN_ONLY === '1') {
+    console.log('\n✓ Seed complete (admin only)\n');
+    console.log('  Super Admin  ', adminEmail, '/', adminPassword, '→ /admin/login');
+    console.log('');
+    return;
+  }
+
   const { event } = await seedDemoEvent();
 
   const structure = await seedEventStructure(event.id, event.venue);
