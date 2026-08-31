@@ -75,6 +75,14 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Monotonic counters for participant codes and certificate numbers. An atomic
+  // `increment` hands each concurrent writer its own number; deriving the next
+  // value by scanning existing codes raced (and scanned the whole table) when a
+  // room full of coaches entered squads at once.
+  participantSeq       Int @default(0)
+  certWinnerSeq        Int @default(0)
+  certParticipationSeq Int @default(0)
+
   @@index([isPublic, startDate])
 }
 

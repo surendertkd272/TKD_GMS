@@ -16,3 +16,6 @@ storage/*
 *.tsbuildinfo
 .vercel
 .env*
+
+# simulation report, regenerated on each run
+.sim-report.txt

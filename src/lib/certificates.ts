@@ -57,7 +57,7 @@ export async function issueCertificatesForCategory(
     } else {
       await db.certificate.create({
         data: {
-          certNo: await nextCertificateNo(event.shortCode, 'PARTICIPATION'),
+          certNo: await nextCertificateNo(event.id, 'PARTICIPATION'),
           participantId,
           categoryId,
           type: 'PARTICIPATION',
@@ -77,7 +77,7 @@ export async function issueCertificatesForCategory(
     }
     await db.certificate.create({
       data: {
-        certNo: await nextCertificateNo(event.shortCode, 'WINNER'),
+        certNo: await nextCertificateNo(event.id, 'WINNER'),
         participantId,
         categoryId,
         type: 'WINNER',
@@ -90,6 +90,7 @@ export async function issueCertificatesForCategory(
 
   await logAudit({
     userId: actorId,
+    eventId: event.id,
     action: 'CERTIFICATES_ISSUED',
     entityType: 'Category',
     entityId: categoryId,
@@ -259,6 +260,7 @@ export async function dispatchCertificates(
 
   await logAudit({
     userId: actorId,
+    eventId: eventRow.id,
     action: 'CERTIFICATES_EMAILED',
     entityType: 'Certificate',
     detail:

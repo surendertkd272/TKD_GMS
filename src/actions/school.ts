@@ -66,6 +66,7 @@ export async function saveSchoolProfile(
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'SCHOOL_PROFILE_UPDATED',
     entityType: 'School',
     entityId: school.id,
@@ -167,7 +168,7 @@ export async function createParticipant(
     return { error: 'Select at least one event (Kyorugi, Poomsae, or both) for an athlete.' };
   }
 
-  const code = await nextParticipantCode(event.shortCode);
+  const code = await nextParticipantCode(event.id);
 
   let participant;
   try {
@@ -214,6 +215,7 @@ export async function createParticipant(
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'PARTICIPANT_CREATED',
     entityType: 'Participant',
     entityId: participant.id,
@@ -297,6 +299,7 @@ export async function updateParticipant(
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'PARTICIPANT_UPDATED',
     entityType: 'Participant',
     entityId: existing.id,
@@ -336,6 +339,7 @@ export async function deleteParticipant(formData: FormData): Promise<void> {
     await db.entry.updateMany({ where: { participantId: participant.id }, data: { status: 'WITHDRAWN' } });
     await logAudit({
       userId: session.userId,
+      eventId: event.id,
       action: 'PARTICIPANT_WITHDRAWN',
       entityType: 'Participant',
       entityId: participant.id,
@@ -348,6 +352,7 @@ export async function deleteParticipant(formData: FormData): Promise<void> {
     await db.participant.delete({ where: { id: participant.id } });
     await logAudit({
       userId: session.userId,
+      eventId: event.id,
       action: 'PARTICIPANT_DELETED',
       entityType: 'Participant',
       entityId: participant.id,
@@ -513,7 +518,7 @@ export async function bulkUploadParticipants(
 
     const participant = await db.participant.create({
       data: {
-        code: await nextParticipantCode(event.shortCode),
+        code: await nextParticipantCode(event.id),
         schoolId: school.id,
         name,
         gender,
@@ -553,6 +558,7 @@ export async function bulkUploadParticipants(
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'BULK_UPLOAD',
     entityType: 'School',
     entityId: school.id,
@@ -585,6 +591,7 @@ export async function submitRegistration(
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'REGISTRATION_SUBMITTED',
     entityType: 'School',
     entityId: school.id,
@@ -623,6 +630,7 @@ export async function recordSchoolPayment(
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'PAYMENT_RECORDED',
     entityType: 'School',
     entityId: school.id,

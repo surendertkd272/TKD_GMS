@@ -69,29 +69,32 @@ async function nextSequential(
  * `shortCode` (unique platform-wide), so these stay collision-free across events
  * without needing an eventId column on Participant/Certificate.
  */
-export async function nextParticipantCode(shortCode: string): Promise<string> {
-  const prefix = `${shortCode}-`;
-  return nextSequential(prefix, 4, async () => {
-    const rows = await db.participant.findMany({
-      where: { code: { startsWith: prefix } },
-      select: { code: true },
-    });
-    return rows.map((r) => r.code);
+export async function nextParticipantCode(eventId: string): Promise<string> {
+  // `increment` compiles to UPDATE … SET x = x + 1, which Postgres serialises on
+  // the row: every concurrent caller gets a distinct number. Deriving it from
+  // MAX(code) instead raced whenever two coaches saved at the same moment.
+  const event = await db.event.update({
+    where: { id: eventId },
+    data: { participantSeq: { increment: 1 } },
+    select: { shortCode: true, participantSeq: true },
   });
+  return `${event.shortCode}-${String(event.participantSeq).padStart(4, '0')}`;
 }
 
 export async function nextCertificateNo(
-  shortCode: string,
+  eventId: string,
   type: 'PARTICIPATION' | 'WINNER',
 ): Promise<string> {
-  const prefix = `${shortCode}-${type === 'WINNER' ? 'W' : 'P'}-`;
-  return nextSequential(prefix, 6, async () => {
-    const rows = await db.certificate.findMany({
-      where: { certNo: { startsWith: prefix } },
-      select: { certNo: true },
-    });
-    return rows.map((r) => r.certNo);
+  const event = await db.event.update({
+    where: { id: eventId },
+    data:
+      type === 'WINNER'
+        ? { certWinnerSeq: { increment: 1 } }
+        : { certParticipationSeq: { increment: 1 } },
+    select: { shortCode: true, certWinnerSeq: true, certParticipationSeq: true },
   });
+  const n = type === 'WINNER' ? event.certWinnerSeq : event.certParticipationSeq;
+  return `${event.shortCode}-${type === 'WINNER' ? 'W' : 'P'}-${String(n).padStart(6, '0')}`;
 }
 
 /** School short code from its name: "Greenwood High School" → "GHS", deduped within the event. */

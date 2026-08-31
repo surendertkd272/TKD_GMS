@@ -47,6 +47,7 @@ export async function startBout(formData: FormData): Promise<void> {
 
   await logAudit({
     userId: auth.session.userId,
+    eventId: auth.event.id,
     action: 'BOUT_STARTED',
     entityType: 'Bout',
     entityId: boutId,
@@ -131,6 +132,7 @@ export async function flagDispute(_prev: RefereeState, formData: FormData): Prom
 
   await logAudit({
     userId: auth.session.userId,
+    eventId: auth.event.id,
     action: 'DISPUTE_RAISED',
     entityType: 'Bout',
     entityId: boutId,
@@ -175,6 +177,7 @@ export async function submitPoomsaeScore(_prev: RefereeState, formData: FormData
 
   await logAudit({
     userId: session.userId,
+    eventId: event.id,
     action: 'POOMSAE_SCORED',
     entityType: 'Entry',
     entityId: entryId,

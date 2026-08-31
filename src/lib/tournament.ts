@@ -164,6 +164,7 @@ export async function generateDraw(
     });
     await logAudit({
       userId: actorId,
+      eventId: category.eventId,
       action: 'DRAW_GENERATED',
       entityType: 'Category',
       entityId: categoryId,
@@ -225,6 +226,7 @@ export async function generateDraw(
 
   await logAudit({
     userId: actorId,
+    eventId: category.eventId,
     action: 'DRAW_GENERATED',
     entityType: 'Category',
     entityId: categoryId,
@@ -357,6 +359,7 @@ export async function reopenBoutChain(
 
   await logAudit({
     userId: actorId,
+    eventId: bout.category.eventId,
     action: 'BOUT_CHAIN_REOPENED',
     entityType: 'Bout',
     entityId: boutId,
@@ -448,6 +451,7 @@ export async function recordBoutResult(
 
   await logAudit({
     userId: input.actorId,
+    eventId: bout.category.eventId,
     action: 'BOUT_RESULT',
     entityType: 'Bout',
     entityId: bout.id,
@@ -488,6 +492,7 @@ export async function walkoverBout(
 // Finalisation → medals
 // ---------------------------------------------------------------------------
 async function maybeFinalizeKyorugi(categoryId: string, actorId: string): Promise<boolean> {
+  const owningEvent = await db.category.findUnique({ where: { id: categoryId }, select: { eventId: true } });
   const bouts = await db.bout.findMany({ where: { categoryId } });
   if (!bouts.length) return false;
 
@@ -509,7 +514,21 @@ async function maybeFinalizeKyorugi(categoryId: string, actorId: string): Promis
   const everyBoutSettled = bouts.every((b) => b.status === 'COMPLETED' || b.status === 'BYE');
   if (!everyBoutSettled) return false;
 
+  // Two bouts of the same division can finish at the same moment on two mats,
+  // and both callers then see a settled bracket. Claim the category first with a
+  // conditional update: Postgres serialises on the row, so exactly one writer
+  // gets count 1 and awards the medals — the other finds it already final and
+  // stops, instead of both deleting and re-creating the same Result rows.
+  let claimed = false;
+
   await db.$transaction(async (tx) => {
+    const claim = await tx.category.updateMany({
+      where: { id: categoryId, finalized: false },
+      data: { finalized: true, finalizedAt: new Date(), drawStatus: 'LOCKED' },
+    });
+    if (claim.count === 0) return;
+    claimed = true;
+
     await tx.result.deleteMany({ where: { categoryId } });
 
     await tx.result.create({ data: { categoryId, entryId: goldEntryId, position: 1, medal: 'GOLD' } });
@@ -527,15 +546,13 @@ async function maybeFinalizeKyorugi(categoryId: string, actorId: string): Promis
     for (const entry of others) {
       await tx.result.create({ data: { categoryId, entryId: entry.id, position: 0 } });
     }
-
-    await tx.category.update({
-      where: { id: categoryId },
-      data: { finalized: true, finalizedAt: new Date(), drawStatus: 'LOCKED' },
-    });
   });
+
+  if (!claimed) return false;
 
   await logAudit({
     userId: actorId,
+    eventId: owningEvent?.eventId ?? null,
     action: 'CATEGORY_FINALIZED',
     entityType: 'Category',
     entityId: categoryId,
@@ -605,6 +622,7 @@ export async function finalizePoomsae(
 
   await logAudit({
     userId: actorId,
+    eventId: category.eventId,
     action: 'CATEGORY_FINALIZED',
     entityType: 'Category',
     entityId: categoryId,
@@ -644,7 +662,27 @@ export async function detectScheduleConflicts(eventId: string): Promise<Schedule
   });
 
   const conflicts: ScheduleConflict[] = [];
-  const overlaps = (a: Date, b: Date) => Math.abs(a.getTime() - b.getTime()) < SLOT_MINUTES * 60_000;
+
+  // The organiser chooses the slot length when auto-scheduling (the form allows
+  // 3–60 minutes), so a hardcoded window reported every consecutive bout as a
+  // clash whenever they picked anything under it. Infer the slot actually used:
+  // the smallest positive gap between neighbouring bouts on the same mat.
+  const byMat = new Map<string, number[]>();
+  for (const bout of bouts) {
+    if (!bout.matId || !bout.scheduledAt) continue;
+    byMat.set(bout.matId, [...(byMat.get(bout.matId) ?? []), bout.scheduledAt.getTime()]);
+  }
+  let slotMs = Number.POSITIVE_INFINITY;
+  for (const times of byMat.values()) {
+    const sorted = [...times].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = sorted[i]! - sorted[i - 1]!;
+      if (gap > 0 && gap < slotMs) slotMs = gap;
+    }
+  }
+  if (!Number.isFinite(slotMs)) slotMs = SLOT_MINUTES * 60_000;
+
+  const overlaps = (a: Date, b: Date) => Math.abs(a.getTime() - b.getTime()) < slotMs;
 
   for (let i = 0; i < bouts.length; i++) {
     for (let j = i + 1; j < bouts.length; j++) {
@@ -670,7 +708,8 @@ export async function detectScheduleConflicts(eventId: string): Promise<Schedule
         });
       }
 
-      if (a.matId && a.matId === b.matId) {
+      // Back-to-back on one mat is the normal case; only the same instant is a clash.
+      if (a.matId && a.matId === b.matId && a.scheduledAt.getTime() === b.scheduledAt.getTime()) {
         conflicts.push({
           kind: 'MAT_OVERLAP',
           boutIds: [a.id, b.id],
