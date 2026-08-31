@@ -43,9 +43,9 @@ export default async function LoginPage({
           Demo logins (seeded)
         </p>
         <ul className="mt-2 space-y-1 font-mono text-xs text-ink-soft">
-          <li>admin@prsnair-taekwondo.org · Admin@123</li>
-          <li>coach@sacredheart.edu.in · School@123</li>
-          <li>referee1@prsnair-taekwondo.org · Referee@123</li>
+          <li>admin@taekwondogms.org · Admin@123</li>
+          <li>coach@demotkd.edu.in · School@123</li>
+          <li>referee1@taekwondogms.org · Referee@123</li>
         </ul>
       </div>
     </div>

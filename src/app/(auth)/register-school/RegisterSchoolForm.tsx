@@ -17,7 +17,7 @@ export function RegisterSchoolForm({ disabled }: { disabled: boolean }) {
           <p className="eyebrow">Institution</p>
 
           <Field label="School name" name="schoolName" required>
-            <input id="schoolName" name="schoolName" required className="input" placeholder="Sacred Heart School" />
+            <input id="schoolName" name="schoolName" required className="input" placeholder="Greenwood High School" />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">

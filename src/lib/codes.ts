@@ -43,7 +43,7 @@ export async function nextCertificateNo(edition: string, type: 'PARTICIPATION' |
   });
 }
 
-/** School short code from its name: "Sacred Heart School" → "SHS", deduped. */
+/** School short code from its name: "Greenwood High School" → "GHS", deduped. */
 export async function deriveSchoolCode(name: string): Promise<string> {
   const words = name
     .replace(/[^a-zA-Z\s]/g, ' ')

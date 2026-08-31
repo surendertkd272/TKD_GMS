@@ -29,7 +29,7 @@ export function Brand({
             invert ? 'text-white' : 'text-ink'
           }`}
         >
-          {compact ? 'P.R.S Nair Championship' : eventName}
+          {compact ? 'Taekwondo GMS' : eventName}
         </span>
         <span
           className={`block text-[11px] leading-tight ${invert ? 'text-white/70' : 'text-ink-muted'}`}

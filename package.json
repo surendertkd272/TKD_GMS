@@ -2,7 +2,7 @@
   "name": "gms-tkd",
   "version": "1.0.0",
   "private": true,
-  "description": "Taekwondo Game Management System - P.R.S Nair Open School Taekwondo Championship",
+  "description": "Taekwondo GMS - Taekwondo Game Management System",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "prisma generate && next build",

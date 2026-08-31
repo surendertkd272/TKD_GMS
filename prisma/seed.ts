@@ -40,10 +40,10 @@ async function main() {
     update: {},
     create: {
       id: 1,
-      eventName: 'P.R.S Nair Open School Taekwondo Championship',
+      eventName: 'Taekwondo GMS Championship',
       edition: EDITION,
-      organiser: 'Sacred Heart School',
-      venue: 'Sacred Heart School, Sports Complex',
+      organiser: 'Taekwondo GMS',
+      venue: 'Taekwondo GMS Sports Complex',
       startDate: new Date(YEAR, 8, 20, 9, 0),
       endDate: new Date(YEAR, 8, 21, 18, 0),
       registrationOpensAt: new Date(YEAR, 6, 1),
@@ -53,7 +53,7 @@ async function main() {
       signatory1Name: 'Nihal Singh',
       signatory1Title: 'Tournament Director',
       signatory2Name: 'Principal',
-      signatory2Title: 'Sacred Heart School',
+      signatory2Title: 'Taekwondo GMS',
     },
   });
   console.log(`  settings   ${settings.eventName} (${settings.edition})`);
@@ -142,7 +142,7 @@ async function main() {
   console.log(`  categories ${categoryCount}`);
 
   // ------------------------------------------------------------ super admin
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@prsnair-taekwondo.org';
+  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@taekwondogms.org';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin@123';
 
   await db.user.upsert({
@@ -160,11 +160,11 @@ async function main() {
   // ------------------------------------------------- referees / jury panel
   const mats = await db.mat.findMany({ orderBy: { sortOrder: 'asc' } });
   const officials = [
-    { name: 'R. Menon', email: 'referee1@prsnair-taekwondo.org', cert: 'WT Level 1', mat: 0, jury: true },
-    { name: 'S. Kaur', email: 'referee2@prsnair-taekwondo.org', cert: 'National Referee', mat: 1, jury: true },
-    { name: 'A. Fernandes', email: 'referee3@prsnair-taekwondo.org', cert: 'State Referee', mat: 2, jury: true },
-    { name: 'D. Bhatt', email: 'referee4@prsnair-taekwondo.org', cert: 'State Referee', mat: 3, jury: true },
-    { name: 'P. Iyer', email: 'jury1@prsnair-taekwondo.org', cert: 'Poomsae Judge', mat: 0, jury: true },
+    { name: 'R. Menon', email: 'referee1@taekwondogms.org', cert: 'WT Level 1', mat: 0, jury: true },
+    { name: 'S. Kaur', email: 'referee2@taekwondogms.org', cert: 'National Referee', mat: 1, jury: true },
+    { name: 'A. Fernandes', email: 'referee3@taekwondogms.org', cert: 'State Referee', mat: 2, jury: true },
+    { name: 'D. Bhatt', email: 'referee4@taekwondogms.org', cert: 'State Referee', mat: 3, jury: true },
+    { name: 'P. Iyer', email: 'jury1@taekwondogms.org', cert: 'Poomsae Judge', mat: 0, jury: true },
   ];
 
   for (const official of officials) {
@@ -185,19 +185,19 @@ async function main() {
   console.log(`  officials  ${officials.length} (password: Referee@123)`);
 
   // --------------------------------------------------------- demo school
-  const demoEmail = 'coach@sacredheart.edu.in';
-  let demoSchool = await db.school.findFirst({ where: { code: 'SHS' } });
+  const demoEmail = 'coach@demotkd.edu.in';
+  let demoSchool = await db.school.findFirst({ where: { code: 'DTA' } });
 
   if (!demoSchool) {
     demoSchool = await db.school.create({
       data: {
-        code: 'SHS',
-        name: 'Sacred Heart School',
+        code: 'DTA',
+        name: 'Demo Taekwondo Academy',
         boardAffiliation: 'CBSE',
-        address: '12 Convent Road',
+        address: '12 MG Road',
         city: 'Kalyan',
         state: 'Maharashtra',
-        principalName: 'Sr. Teresa Mathew',
+        principalName: 'Anita Deshmukh',
         coachName: 'Rajesh Pillai',
         coachPhone: '+91 98200 11223',
         contactEmail: demoEmail,
@@ -298,7 +298,7 @@ async function main() {
       },
     });
 
-    console.log(`  demo       Sacred Heart School — ${demoAthletes.length} athletes + 1 coach (${demoEmail} / School@123)`);
+    console.log(`  demo       Demo Taekwondo Academy — ${demoAthletes.length} athletes + 1 coach (${demoEmail} / School@123)`);
   } else {
     console.log('  demo       already present, left untouched');
   }
@@ -306,7 +306,7 @@ async function main() {
   console.log('\n✓ Seed complete\n');
   console.log('  Super Admin  ', adminEmail, '/', adminPassword);
   console.log('  School       ', demoEmail, '/ School@123');
-  console.log('  Referee      ', 'referee1@prsnair-taekwondo.org / Referee@123');
+  console.log('  Referee      ', 'referee1@taekwondogms.org / Referee@123');
   console.log('');
 }
 

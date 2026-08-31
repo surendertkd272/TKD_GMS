@@ -22,10 +22,10 @@ datasource db {
 // ---------------------------------------------------------------------------
 model EventSettings {
   id                  Int      @id @default(1)
-  eventName           String   @default("P.R.S Nair Open School Taekwondo Championship")
+  eventName           String   @default("Taekwondo GMS Championship")
   edition             String   @default("2026")
-  organiser           String   @default("Sacred Heart School")
-  venue               String   @default("Sacred Heart School, Sports Complex")
+  organiser           String   @default("Taekwondo GMS")
+  venue               String   @default("Taekwondo GMS Sports Complex")
   startDate           DateTime
   endDate             DateTime
   registrationOpensAt DateTime
@@ -47,7 +47,7 @@ model EventSettings {
   signatory1Name  String @default("Nihal Singh")
   signatory1Title String @default("Tournament Director")
   signatory2Name  String @default("Principal")
-  signatory2Title String @default("Sacred Heart School")
+  signatory2Title String @default("Taekwondo GMS")
 
   // Publication switches (Super Admin controlled)
   drawsPublished     Boolean @default(false)
