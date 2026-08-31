@@ -24,13 +24,36 @@ export async function resetDb() {
   await db.school.deleteMany();
   await db.mat.deleteMany();
   await db.auditLog.deleteMany();
-  await db.eventSettings.deleteMany();
+  await db.event.deleteMany();
 }
 
-export async function createSchool(overrides: Partial<Prisma.SchoolUncheckedCreateInput> = {}) {
+/** Every test fixture hangs off an event now. */
+export async function createEvent(overrides: Partial<Prisma.EventUncheckedCreateInput> = {}) {
+  const n = seq();
+  const year = 2026;
+  return db.event.create({
+    data: {
+      slug: `test-event-${n}`,
+      shortCode: `TST${n}`,
+      eventName: `Test Event ${n}`,
+      edition: String(year),
+      organiser: 'Test Organiser',
+      venue: 'Test Venue',
+      startDate: new Date(year, 8, 20),
+      endDate: new Date(year, 8, 21),
+      registrationOpensAt: new Date(year, 6, 1),
+      registrationClosesAt: new Date(year, 8, 5),
+      ageReferenceDate: new Date(year, 11, 31),
+      ...overrides,
+    },
+  });
+}
+
+export async function createSchool(eventId: string, overrides: Partial<Prisma.SchoolUncheckedCreateInput> = {}) {
   const n = seq();
   return db.school.create({
     data: {
+      eventId,
       code: `SCH${n}`,
       name: `Test School ${n}`,
       contactEmail: `school${n}@example.com`,
@@ -62,13 +85,14 @@ export async function createParticipant(
   });
 }
 
-export async function createCategory(overrides: Partial<Prisma.CategoryUncheckedCreateInput> = {}) {
+export async function createCategory(eventId: string, overrides: Partial<Prisma.CategoryUncheckedCreateInput> = {}) {
   const n = seq();
   return db.category.create({
     data: {
+      eventId,
       code: `CAT${n}`,
       name: `Category ${n}`,
-      event: 'KYORUGI',
+      discipline: 'KYORUGI',
       ageCategory: 'CADET',
       gender: 'MALE',
       sortOrder: n,
@@ -81,15 +105,16 @@ export async function createEntry(participantId: string, categoryId: string) {
   return db.entry.create({ data: { participantId, categoryId } });
 }
 
-export async function createMat(overrides: Partial<Prisma.MatUncheckedCreateInput> = {}) {
+export async function createMat(eventId: string, overrides: Partial<Prisma.MatUncheckedCreateInput> = {}) {
   const n = seq();
-  return db.mat.create({ data: { name: `Mat ${n}`, sortOrder: n, ...overrides } });
+  return db.mat.create({ data: { eventId, name: `Mat ${n}`, sortOrder: n, ...overrides } });
 }
 
-export async function createReferee(overrides: Partial<Prisma.UserUncheckedCreateInput> = {}) {
+export async function createReferee(eventId: string, overrides: Partial<Prisma.UserUncheckedCreateInput> = {}) {
   const n = seq();
   return db.user.create({
     data: {
+      eventId,
       email: `ref${n}@example.com`,
       passwordHash: 'x',
       name: `Referee ${n}`,

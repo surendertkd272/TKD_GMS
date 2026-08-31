@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const participant = await db.participant.findUnique({
     where: { id },
-    select: { code: true, schoolId: true, status: true, school: { select: { status: true } } },
+    select: { code: true, schoolId: true, status: true, school: { select: { status: true, event: true } } },
   });
   if (!participant) return notFound('Participant not found.');
 
@@ -25,7 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return forbidden('Accreditation cards are released once the school registration is approved.');
   }
 
-  const bytes = await renderSingleCard(id);
+  const bytes = await renderSingleCard(participant.school.event, id);
   if (!bytes) return notFound('Could not build that card.');
 
   return pdfResponse(bytes, `accreditation-${participant.code}.pdf`);

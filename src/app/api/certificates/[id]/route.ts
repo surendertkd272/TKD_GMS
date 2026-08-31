@@ -11,7 +11,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const certificate = await db.certificate.findUnique({
     where: { id },
-    select: { certNo: true, revoked: true, participant: { select: { schoolId: true } } },
+    select: {
+      certNo: true,
+      revoked: true,
+      participant: { select: { schoolId: true, school: { select: { event: true } } } },
+    },
   });
   if (!certificate) return notFound('Certificate not found.');
   if (certificate.revoked) return forbidden('That certificate has been revoked.');
@@ -21,6 +25,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   if (session.role === 'REFEREE') return forbidden('Officials do not issue certificates.');
 
-  const bytes = await renderCertificates([id]);
+  const bytes = await renderCertificates(certificate.participant.school.event, [id]);
   return pdfResponse(bytes, `certificate-${certificate.certNo}.pdf`);
 }

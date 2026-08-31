@@ -7,9 +7,12 @@ export async function setup() {
   process.loadEnvFile();
   const databaseUrl = testDatabaseUrl(process.env.DATABASE_URL!);
 
+  // DIRECT_URL matters too: schema.prisma declares it, so the CLI pushes DDL
+  // through that connection — leaving it pointed at `public` would create the
+  // tables in the wrong schema.
   execSync('npx prisma db push --skip-generate --accept-data-loss', {
     cwd: path.resolve(import.meta.dirname, '../..'),
-    env: { ...process.env, DATABASE_URL: databaseUrl },
+    env: { ...process.env, DATABASE_URL: databaseUrl, DIRECT_URL: databaseUrl },
     stdio: 'pipe',
   });
 }

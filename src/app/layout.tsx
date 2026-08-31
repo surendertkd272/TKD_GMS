@@ -1,18 +1,14 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { getSettings } from '@/lib/db';
 
-export async function generateMetadata(): Promise<Metadata> {
-  const settings = await getSettings();
-  return {
-    title: {
-      default: `${settings.eventName} ${settings.edition}`,
-      template: `%s · ${settings.eventName}`,
-    },
-    description:
-      'Registration, accreditation, live draws, scoring, medal tally and digital certificates for the championship.',
-  };
-}
+export const metadata: Metadata = {
+  title: {
+    default: 'Taekwondo GMS',
+    template: '%s · Taekwondo GMS',
+  },
+  description:
+    'Registration, accreditation, live draws, scoring, medal tally and digital certificates for taekwondo championships.',
+};
 
 export const viewport: Viewport = {
   width: 'device-width',

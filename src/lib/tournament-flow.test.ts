@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/lib/db';
 import {
   createCategory,
+  createEvent,
   createEntry,
   createParticipant,
   createReferee,
@@ -10,14 +11,17 @@ import {
 } from '@/test/factories';
 import { generateDraw, recordBoutResult, walkoverBout, finalizePoomsae } from './tournament';
 
+let event: Awaited<ReturnType<typeof createEvent>>;
+
 beforeEach(async () => {
   await resetDb();
+  event = await createEvent();
 });
 
 /** Builds a Kyorugi category with `count` approved entries, ready to draw. */
 async function kyorugiCategoryWithEntries(count: number) {
-  const category = await createCategory({ event: 'KYORUGI' });
-  const school = await createSchool();
+  const category = await createCategory(event.id, { discipline: 'KYORUGI' });
+  const school = await createSchool(event.id);
   const entries = [];
   for (let i = 0; i < count; i++) {
     const participant = await createParticipant(school.id, { status: 'APPROVED', name: `Athlete ${i + 1}` });
@@ -29,7 +33,7 @@ async function kyorugiCategoryWithEntries(count: number) {
 describe('generateDraw — Kyorugi', () => {
   it('builds a bracket and marks the category GENERATED', async () => {
     const { category } = await kyorugiCategoryWithEntries(4);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     const result = await generateDraw(category.id, 'BELT', referee.id);
     expect(result).toMatchObject({ ok: true, entrants: 4, bouts: 3, byes: 0 });
@@ -43,7 +47,7 @@ describe('generateDraw — Kyorugi', () => {
 
   it('refuses to regenerate a locked draw', async () => {
     const { category } = await kyorugiCategoryWithEntries(2);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
     await db.category.update({ where: { id: category.id }, data: { drawStatus: 'LOCKED' } });
 
     const result = await generateDraw(category.id, 'BELT', referee.id);
@@ -51,11 +55,11 @@ describe('generateDraw — Kyorugi', () => {
   });
 
   it('refuses to draw a category with no approved entries', async () => {
-    const category = await createCategory({ event: 'KYORUGI' });
-    const school = await createSchool();
+    const category = await createCategory(event.id, { discipline: 'KYORUGI' });
+    const school = await createSchool(event.id);
     const participant = await createParticipant(school.id, { status: 'PENDING' });
     await createEntry(participant.id, category.id);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     const result = await generateDraw(category.id, 'BELT', referee.id);
     expect(result).toMatchObject({ ok: false });
@@ -64,14 +68,14 @@ describe('generateDraw — Kyorugi', () => {
 
 describe('generateDraw — Poomsae', () => {
   it('sets a performance order instead of a bracket', async () => {
-    const category = await createCategory({ event: 'POOMSAE' });
-    const school = await createSchool();
+    const category = await createCategory(event.id, { discipline: 'POOMSAE' });
+    const school = await createSchool(event.id);
     const entries = [];
     for (let i = 0; i < 3; i++) {
       const participant = await createParticipant(school.id, { status: 'APPROVED' });
       entries.push(await createEntry(participant.id, category.id));
     }
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     const result = await generateDraw(category.id, 'BELT', referee.id);
     expect(result).toMatchObject({ ok: true, entrants: 3, bouts: 0, byes: 0 });
@@ -85,7 +89,7 @@ describe('generateDraw — Poomsae', () => {
 describe('recordBoutResult — full bracket playthrough and medal award', () => {
   it('awards gold+silver from the final and bronze to both semi-final losers', async () => {
     const { category, entries } = await kyorugiCategoryWithEntries(4);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     await generateDraw(category.id, 'BELT', referee.id);
 
@@ -136,7 +140,7 @@ describe('recordBoutResult — full bracket playthrough and medal award', () => 
 
   it('rejects a result once the category is already finalised', async () => {
     const { category } = await kyorugiCategoryWithEntries(2);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
     await generateDraw(category.id, 'BELT', referee.id);
     const final = await db.bout.findFirstOrThrow({ where: { categoryId: category.id } });
 
@@ -148,7 +152,7 @@ describe('recordBoutResult — full bracket playthrough and medal award', () => 
 
   it('rejects a winner corner with no athlete assigned', async () => {
     const { category } = await kyorugiCategoryWithEntries(4);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
     await generateDraw(category.id, 'BELT', referee.id);
 
     const final = await db.bout.findFirstOrThrow({ where: { categoryId: category.id, round: 2 } });
@@ -161,7 +165,7 @@ describe('recordBoutResult — full bracket playthrough and medal award', () => 
 describe('walkoverBout', () => {
   it('marks the loser WITHDRAWN only when the reason is WITHDRAWAL, not WALKOVER', async () => {
     const { category } = await kyorugiCategoryWithEntries(2);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
     await generateDraw(category.id, 'BELT', referee.id);
     const bout = await db.bout.findFirstOrThrow({ where: { categoryId: category.id } });
     const loserEntryId = bout.blueEntryId!;
@@ -173,7 +177,7 @@ describe('walkoverBout', () => {
 
   it('marks the loser WITHDRAWN for a WITHDRAWAL', async () => {
     const { category } = await kyorugiCategoryWithEntries(2);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
     await generateDraw(category.id, 'BELT', referee.id);
     const bout = await db.bout.findFirstOrThrow({ where: { categoryId: category.id } });
     const loserEntryId = bout.blueEntryId!;
@@ -186,9 +190,9 @@ describe('walkoverBout', () => {
 
 describe('finalizePoomsae', () => {
   async function poomsaeCategoryWithScores(scores: number[]) {
-    const category = await createCategory({ event: 'POOMSAE' });
-    const school = await createSchool();
-    const judge = await createReferee({ isJury: true });
+    const category = await createCategory(event.id, { discipline: 'POOMSAE' });
+    const school = await createSchool(event.id);
+    const judge = await createReferee(event.id, { isJury: true });
     const entries = [];
     for (const total of scores) {
       const participant = await createParticipant(school.id, { status: 'APPROVED' });
@@ -203,7 +207,7 @@ describe('finalizePoomsae', () => {
 
   it('ranks entries by score and awards medals to the top 3', async () => {
     const { category, entries } = await poomsaeCategoryWithScores([9.5, 8.0, 8.8, 7.0]);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     const result = await finalizePoomsae(category.id, referee.id);
     expect(result).toMatchObject({ ok: true, ranked: 4 });
@@ -223,10 +227,10 @@ describe('finalizePoomsae', () => {
 
   it('refuses to finalise while any entry has no judge score', async () => {
     const { category } = await poomsaeCategoryWithScores([9.0]);
-    const school = await createSchool();
+    const school = await createSchool(event.id);
     const unscoredParticipant = await createParticipant(school.id, { status: 'APPROVED' });
     await createEntry(unscoredParticipant.id, category.id);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     const result = await finalizePoomsae(category.id, referee.id);
     expect(result).toMatchObject({ ok: false });
@@ -234,7 +238,7 @@ describe('finalizePoomsae', () => {
 
   it('refuses to finalise a Kyorugi category', async () => {
     const { category } = await kyorugiCategoryWithEntries(2);
-    const referee = await createReferee();
+    const referee = await createReferee(event.id);
 
     const result = await finalizePoomsae(category.id, referee.id);
     expect(result).toMatchObject({ ok: false });

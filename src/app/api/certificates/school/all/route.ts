@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     session.role === 'SUPER_ADMIN' ? requested : session.role === 'SCHOOL' ? session.schoolId : null;
   if (!schoolId) return badRequest('No school specified.');
 
-  const school = await db.school.findUnique({ where: { id: schoolId }, select: { code: true } });
+  const school = await db.school.findUnique({ where: { id: schoolId }, select: { code: true, event: true } });
   if (!school) return notFound('School not found.');
 
   const certificates = await db.certificate.findMany({
@@ -22,6 +22,6 @@ export async function GET(request: Request) {
   });
   if (!certificates.length) return notFound('No certificates have been issued for this school yet.');
 
-  const bytes = await renderCertificates(certificates.map((c) => c.id));
+  const bytes = await renderCertificates(school.event, certificates.map((c) => c.id));
   return pdfResponse(bytes, `certificates-${school.code}.pdf`);
 }

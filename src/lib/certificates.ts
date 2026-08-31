@@ -1,5 +1,6 @@
 import 'server-only';
-import { db, getSettings } from './db';
+import type { Event } from '@prisma/client';
+import { db } from './db';
 import { nextCertificateNo } from './codes';
 import { buildCertificatePdf, type CertificateData, type CertificateEvent } from './pdf/certificate';
 import { sendMail } from './mail';
@@ -7,20 +8,19 @@ import { sendSms } from './sms';
 import { logAudit } from './auth';
 import { fmtDate } from './format';
 
-export async function certificateEventContext(): Promise<CertificateEvent> {
-  const settings = await getSettings();
-  const sameDay = fmtDate(settings.startDate) === fmtDate(settings.endDate);
+export function certificateEventContext(event: Event): CertificateEvent {
+  const sameDay = fmtDate(event.startDate) === fmtDate(event.endDate);
   return {
-    eventName: settings.eventName,
-    edition: settings.edition,
-    organiser: settings.organiser,
-    venue: settings.venue,
-    dateLabel: sameDay ? fmtDate(settings.startDate) : `${fmtDate(settings.startDate)} – ${fmtDate(settings.endDate)}`,
+    eventName: event.eventName,
+    edition: event.edition,
+    organiser: event.organiser,
+    venue: event.venue,
+    dateLabel: sameDay ? fmtDate(event.startDate) : `${fmtDate(event.startDate)} – ${fmtDate(event.endDate)}`,
     baseUrl: process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000',
-    signatory1Name: settings.signatory1Name,
-    signatory1Title: settings.signatory1Title,
-    signatory2Name: settings.signatory2Name,
-    signatory2Title: settings.signatory2Title,
+    signatory1Name: event.signatory1Name,
+    signatory1Title: event.signatory1Title,
+    signatory2Name: event.signatory2Name,
+    signatory2Title: event.signatory2Title,
   };
 }
 
@@ -30,15 +30,16 @@ export async function certificateEventContext(): Promise<CertificateEvent> {
  * Idempotent — re-running after a correction will not duplicate rows.
  */
 export async function issueCertificatesForCategory(
+  event: Event,
   categoryId: string,
   actorId: string,
 ): Promise<{ ok: true; created: number; skipped: number } | { ok: false; error: string }> {
-  const settings = await getSettings();
   const category = await db.category.findUnique({
     where: { id: categoryId },
     include: { results: { include: { entry: { include: { participant: true } } } } },
   });
   if (!category) return { ok: false, error: 'Category not found.' };
+  if (category.eventId !== event.id) return { ok: false, error: 'That category belongs to another event.' };
   if (!category.finalized) return { ok: false, error: 'Finalise the category before issuing certificates.' };
 
   let created = 0;
@@ -56,7 +57,7 @@ export async function issueCertificatesForCategory(
     } else {
       await db.certificate.create({
         data: {
-          certNo: await nextCertificateNo(settings.edition, 'PARTICIPATION'),
+          certNo: await nextCertificateNo(event.shortCode, 'PARTICIPATION'),
           participantId,
           categoryId,
           type: 'PARTICIPATION',
@@ -76,7 +77,7 @@ export async function issueCertificatesForCategory(
     }
     await db.certificate.create({
       data: {
-        certNo: await nextCertificateNo(settings.edition, 'WINNER'),
+        certNo: await nextCertificateNo(event.shortCode, 'WINNER'),
         participantId,
         categoryId,
         type: 'WINNER',
@@ -126,18 +127,18 @@ export async function certificateDataFor(certificateIds: string[]): Promise<Cert
       participantName: row.participant.name,
       schoolName: row.participant.school.name,
       categoryName: row.category?.name ?? null,
-      event: row.category?.event ?? null,
+      event: row.category?.discipline ?? null,
       ageCategory: row.category?.ageCategory ?? null,
       medal: row.medal,
       position: row.position,
-      score: row.category?.event === 'POOMSAE' ? (score?.score ?? null) : null,
+      score: row.category?.discipline === 'POOMSAE' ? (score?.score ?? null) : null,
     };
   });
 }
 
-export async function renderCertificates(certificateIds: string[]): Promise<Uint8Array> {
-  const [data, event] = await Promise.all([certificateDataFor(certificateIds), certificateEventContext()]);
-  return buildCertificatePdf(data, event);
+export async function renderCertificates(event: Event, certificateIds: string[]): Promise<Uint8Array> {
+  const data = await certificateDataFor(certificateIds);
+  return buildCertificatePdf(data, certificateEventContext(event));
 }
 
 /**
@@ -146,17 +147,21 @@ export async function renderCertificates(certificateIds: string[]): Promise<Uint
  * the participant has their own email on file.
  */
 export async function dispatchCertificates(
+  eventRow: Event,
   options: { schoolId?: string; categoryId?: string; onlyUnsent?: boolean },
   actorId: string,
 ): Promise<{ schools: number; emails: number; certificates: number; failures: string[] }> {
-  const event = await certificateEventContext();
+  const event = certificateEventContext(eventRow);
 
   const certificates = await db.certificate.findMany({
     where: {
       revoked: false,
+      participant: {
+        school: { eventId: eventRow.id },
+        ...(options.schoolId ? { schoolId: options.schoolId } : {}),
+      },
       ...(options.onlyUnsent === false ? {} : { emailedAt: null }),
       ...(options.categoryId ? { categoryId: options.categoryId } : {}),
-      ...(options.schoolId ? { participant: { schoolId: options.schoolId } } : {}),
     },
     include: { participant: { include: { school: true } } },
   });
@@ -179,7 +184,7 @@ export async function dispatchCertificates(
       continue;
     }
 
-    const pdfBytes = await renderCertificates(group.map((c) => c.id));
+    const pdfBytes = await renderCertificates(eventRow, group.map((c) => c.id));
     const winners = group.filter((c) => c.type === 'WINNER');
 
     const lines = [

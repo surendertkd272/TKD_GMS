@@ -5,13 +5,14 @@ import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
 import { logAudit, requireReferee } from '@/lib/auth';
 import { recordBoutResult } from '@/lib/tournament';
+import { matPath } from '@/lib/paths';
 import { validateJudgeScore } from '@/lib/poomsae';
 
 export type RefereeState = { ok?: boolean; error?: string; message?: string } | null;
 
 /** A referee may only touch bouts on the mat they are signed in against. */
 async function authoriseBout(boutId: string) {
-  const { session, user } = await requireReferee();
+  const { session, user, event } = await requireReferee();
 
   const bout = await db.bout.findUnique({
     where: { id: boutId },
@@ -23,6 +24,7 @@ async function authoriseBout(boutId: string) {
     },
   });
   if (!bout) return { error: 'Bout not found.' as const };
+  if (bout.category.eventId !== event.id) return { error: 'That bout is not part of your event.' as const };
 
   const assignedToMe = bout.refereeId === session.userId;
   const onMyMat = user.assignedMatId != null && bout.matId === user.assignedMatId;
@@ -30,7 +32,7 @@ async function authoriseBout(boutId: string) {
     return { error: 'That bout is not on your assigned mat.' as const };
   }
 
-  return { session, user, bout };
+  return { session, user, bout, event };
 }
 
 export async function startBout(formData: FormData): Promise<void> {
@@ -51,9 +53,9 @@ export async function startBout(formData: FormData): Promise<void> {
     detail: `${auth.bout.category.name} ${auth.bout.roundLabel}`,
   });
 
-  revalidatePath('/mat');
-  revalidatePath(`/mat/bout/${boutId}`);
-  redirect(`/mat/bout/${boutId}`);
+  revalidatePath(matPath(auth.event.slug));
+  revalidatePath(matPath(auth.event.slug, `bout/${boutId}`));
+  redirect(matPath(auth.event.slug, `bout/${boutId}`));
 }
 
 export async function submitKyorugiResult(_prev: RefereeState, formData: FormData): Promise<RefereeState> {
@@ -104,12 +106,12 @@ export async function submitKyorugiResult(_prev: RefereeState, formData: FormDat
 
   if (!result.ok) return { error: result.error };
 
-  revalidatePath('/mat');
-  revalidatePath('/results');
-  revalidatePath('/medal-tally');
+  revalidatePath(matPath(auth.event.slug));
+  
+  
 
   redirect(
-    `/mat?submitted=${encodeURIComponent(
+    `${matPath(auth.event.slug)}?submitted=${encodeURIComponent(
       result.categoryFinalized
         ? `Result recorded. ${auth.bout.category.name} is complete — medals are on the tally.`
         : 'Result recorded and the winner advanced. Next bout is ready.',
@@ -135,8 +137,8 @@ export async function flagDispute(_prev: RefereeState, formData: FormData): Prom
     detail: note,
   });
 
-  revalidatePath('/mat');
-  revalidatePath('/admin/live');
+  revalidatePath(matPath(auth.event.slug));
+  
   return { ok: true, message: 'Flagged for the Technical Director. They can see it on live control now.' };
 }
 
@@ -145,7 +147,7 @@ export async function flagDispute(_prev: RefereeState, formData: FormData): Prom
  * so a correction replaces rather than duplicates.
  */
 export async function submitPoomsaeScore(_prev: RefereeState, formData: FormData): Promise<RefereeState> {
-  const { session, user } = await requireReferee();
+  const { session, user, event } = await requireReferee();
   if (!user.isJury) return { error: 'Your account is not on the Poomsae jury panel.' };
 
   const entryId = String(formData.get('entryId') ?? '');
@@ -179,7 +181,7 @@ export async function submitPoomsaeScore(_prev: RefereeState, formData: FormData
     detail: `${entry.participant.name}: ${accuracy.toFixed(1)} + ${presentation.toFixed(1)} = ${total.toFixed(2)}`,
   });
 
-  revalidatePath(`/mat/poomsae/${entry.categoryId}`);
-  revalidatePath('/admin/live');
+  revalidatePath(matPath(event.slug, `poomsae/${entry.categoryId}`));
+  
   return { ok: true, message: `Scored ${entry.participant.name} — ${total.toFixed(2)} / 10.00.` };
 }

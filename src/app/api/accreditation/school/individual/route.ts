@@ -15,10 +15,13 @@ export async function GET(request: Request) {
     return forbidden('That school is not yours.');
   }
 
-  const school = await db.school.findUnique({ where: { id: schoolId }, select: { code: true, status: true } });
+  const school = await db.school.findUnique({
+    where: { id: schoolId },
+    select: { code: true, status: true, event: true },
+  });
   if (!school) return notFound('School not found.');
   if (school.status !== 'APPROVED') return forbidden('Cards are released once the registration is approved.');
 
   const cards = await cardDataForSchool(schoolId);
-  return pdfResponse(await renderIndividualCards(cards), `accreditation-cards-${school.code}.pdf`);
+  return pdfResponse(await renderIndividualCards(school.event, cards), `accreditation-cards-${school.code}.pdf`);
 }

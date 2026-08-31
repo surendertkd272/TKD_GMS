@@ -11,6 +11,9 @@ export type NavSection = { title?: string; items: NavItem[] };
 export function AppShell({
   eventName,
   edition,
+  eventSlug,
+  homeHref,
+  publicHref,
   role,
   userName,
   contextLine,
@@ -19,17 +22,23 @@ export function AppShell({
 }: {
   eventName: string;
   edition: string;
+  /** Present for event-scoped shells (school/referee); admin shells pass hrefs directly. */
+  eventSlug?: string;
+  homeHref?: string;
+  publicHref?: string;
   role: Role;
   userName: string;
   contextLine?: string;
   sections: NavSection[];
   children: ReactNode;
 }) {
+  const brandHref = homeHref ?? (eventSlug ? `/events/${eventSlug}` : '/');
+  const publicLink = publicHref ?? (eventSlug ? `/events/${eventSlug}` : '/');
   return (
     <div className="min-h-screen bg-surface-sunk">
       {/* Mobile bar */}
       <div className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-surface-line bg-white px-4 py-3 lg:hidden">
-        <Brand eventName={eventName} edition={edition} href="/" compact />
+        <Brand eventName={eventName} edition={edition} href={brandHref} compact />
         <form action={logoutAction}>
           <button className="btn-quiet btn-sm" type="submit">
             Sign out
@@ -40,7 +49,7 @@ export function AppShell({
       <div className="lg:flex">
         <aside className="no-print hidden w-64 shrink-0 border-r border-surface-line bg-white lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
           <div className="border-b border-surface-line px-4 py-4">
-            <Brand eventName={eventName} edition={edition} href="/" compact />
+            <Brand eventName={eventName} edition={edition} href={brandHref} compact />
           </div>
 
           <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
@@ -76,7 +85,7 @@ export function AppShell({
                   Sign out
                 </button>
               </form>
-              <Link href="/" className="btn-quiet btn-sm" title="Public page">
+              <Link href={publicLink} className="btn-quiet btn-sm" title="Public page">
                 Public
               </Link>
             </div>

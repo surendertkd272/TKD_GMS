@@ -18,14 +18,26 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// Event-wide configuration (single row, id = 1)
+// Event — one tournament. Every school, division, mat and login belongs to
+// exactly one of these; the platform lists them at "/".
 // ---------------------------------------------------------------------------
-model EventSettings {
-  id                  Int      @id @default(1)
-  eventName           String   @default("Taekwondo GMS Championship")
-  edition             String   @default("2026")
-  organiser           String   @default("Taekwondo GMS")
-  venue               String   @default("Taekwondo GMS Sports Complex")
+model Event {
+  id String @id @default(cuid())
+
+  // URL segment, e.g. /events/spring-open-2026
+  slug String @unique
+  // Short prefix stamped onto participant IDs and certificate numbers
+  // (e.g. SPR26-0042, SPR26-C-000123). Unique so those stay collision-free
+  // platform-wide without needing an eventId column on those tables.
+  shortCode String @unique
+  // Whether it appears in the public directory at "/". A direct link to an
+  // unlisted event still works — this only gates the listing.
+  isPublic Boolean @default(false)
+
+  eventName           String
+  edition             String
+  organiser           String
+  venue               String
   startDate           DateTime
   endDate             DateTime
   registrationOpensAt DateTime
@@ -44,17 +56,26 @@ model EventSettings {
   pointsBronze Int @default(1)
 
   // Certificate signature block
-  signatory1Name  String @default("Nihal Singh")
+  signatory1Name  String @default("Tournament Director")
   signatory1Title String @default("Tournament Director")
   signatory2Name  String @default("Principal")
-  signatory2Title String @default("Taekwondo GMS")
+  signatory2Title String @default("")
 
   // Publication switches (Super Admin controlled)
   drawsPublished     Boolean @default(false)
   resultsPublished   Boolean @default(true)
   registrationLocked Boolean @default(false)
 
+  schools    School[]
+  categories Category[]
+  mats       Mat[]
+  users      User[]
+  auditLogs  AuditLog[]
+
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([isPublic, startDate])
 }
 
 // ---------------------------------------------------------------------------
@@ -62,11 +83,17 @@ model EventSettings {
 // ---------------------------------------------------------------------------
 model User {
   id           String  @id @default(cuid())
-  email        String  @unique
+  email        String
   passwordHash String
   name         String
   role         String // SUPER_ADMIN | SCHOOL | REFEREE
   active       Boolean @default(true)
+
+  // SCHOOL and REFEREE logins belong to one event; SUPER_ADMIN is platform-wide
+  // (eventId null). Emails are unique per event, so a returning coach can reuse
+  // the same address for next year's event.
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   // SCHOOL role → the school this login owns
   schoolId String? @unique
@@ -85,15 +112,22 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Postgres treats NULLs as distinct, so this does NOT constrain SUPER_ADMIN
+  // rows (eventId null) — admin uniqueness is enforced in application code.
+  @@unique([eventId, email])
   @@index([role])
+  @@index([email])
 }
 
 // ---------------------------------------------------------------------------
 // Schools & participants
 // ---------------------------------------------------------------------------
 model School {
-  id               String  @id @default(cuid())
-  code             String  @unique // short code used on cards, e.g. SHS
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  code             String // short code used on cards, e.g. SHS — unique per event
   name             String
   boardAffiliation String? // CBSE / ICSE / State Board ...
   address          String?
@@ -123,7 +157,8 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([status])
+  @@unique([eventId, code])
+  @@index([eventId, status])
 }
 
 model Participant {
@@ -188,8 +223,11 @@ model Payment {
 // Competition structure
 // ---------------------------------------------------------------------------
 model Mat {
-  id       String  @id @default(cuid())
-  name     String  @unique // "Mat 1"
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name     String // "Mat 1" — unique per event
   venue    String?
   active   Boolean @default(true)
   sortOrder Int    @default(0)
@@ -197,13 +235,19 @@ model Mat {
   bouts     Bout[]
   officials User[]
   slots     PoomsaeSession[]
+
+  @@unique([eventId, name])
+  @@index([eventId])
 }
 
 model Category {
-  id    String @id @default(cuid())
-  code  String @unique // KYO-CADET-M-45
-  name  String // "Cadet Male -45 kg"
-  event String // KYORUGI | POOMSAE
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  code       String // KYO-CADET-M-45 — unique per event
+  name       String // "Cadet Male -45 kg"
+  discipline String // KYORUGI | POOMSAE
 
   ageCategory String // YOUTH | CADET | JUNIOR
   gender      String // MALE | FEMALE | MIXED
@@ -231,7 +275,8 @@ model Category {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([event, ageCategory, gender])
+  @@unique([eventId, code])
+  @@index([eventId, discipline, ageCategory, gender])
 }
 
 model Entry {
@@ -411,6 +456,10 @@ model AuditLog {
   userId String?
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  // Null for platform-level actions (e.g. EVENT_CREATED)
+  eventId String?
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
   action     String // e.g. SCHOOL_APPROVED, DRAW_GENERATED, BOUT_RESULT
   entityType String
   entityId   String?
@@ -418,5 +467,5 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
-  @@index([createdAt])
+  @@index([eventId, createdAt])
 }

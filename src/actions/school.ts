@@ -5,11 +5,12 @@ import { redirect } from 'next/navigation';
 import { mkdir, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { db, getSettings } from '@/lib/db';
+import { db } from '@/lib/db';
 import { logAudit, requireSchool } from '@/lib/auth';
 import { classifyAge } from '@/lib/age';
 import { nextParticipantCode } from '@/lib/codes';
 import { syncParticipantEntries } from '@/lib/tournament';
+import { schoolPath } from '@/lib/paths';
 import { parseCsvTable } from '@/lib/csv';
 import { BELT_GRADES, PERSON_ROLES } from '@/lib/constants';
 import { CSV_TEMPLATE_HEADERS, recalcSchoolFees } from '@/lib/school-service';
@@ -44,7 +45,7 @@ export async function saveSchoolProfile(
   _prev: SchoolActionState,
   formData: FormData,
 ): Promise<SchoolActionState> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
 
   const parsed = profileSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]!.message };
@@ -70,8 +71,8 @@ export async function saveSchoolProfile(
     entityId: school.id,
   });
 
-  revalidatePath('/school/profile');
-  revalidatePath('/school');
+  revalidatePath(schoolPath(event.slug, 'profile'));
+  revalidatePath(schoolPath(event.slug));
   return { ok: true, message: 'Institution details saved. They are reused on every future entry.' };
 }
 
@@ -103,9 +104,11 @@ function readParticipantForm(formData: FormData) {
   });
 }
 
-async function assertRegistrationOpen(schoolId: string): Promise<string | null> {
-  const settings = await getSettings();
-  if (settings.registrationLocked) {
+async function assertRegistrationOpen(
+  event: { registrationLocked: boolean },
+  schoolId: string,
+): Promise<string | null> {
+  if (event.registrationLocked) {
     return 'Registration is closed. Contact the organising team for a late change.';
   }
   const school = await db.school.findUnique({ where: { id: schoolId }, select: { status: true } });
@@ -133,20 +136,19 @@ export async function createParticipant(
   _prev: SchoolActionState,
   formData: FormData,
 ): Promise<SchoolActionState> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
 
-  const blocked = await assertRegistrationOpen(school.id);
+  const blocked = await assertRegistrationOpen(event, school.id);
   if (blocked) return { error: blocked };
 
   const parsed = readParticipantForm(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]!.message };
   const input = parsed.data;
 
-  const settings = await getSettings();
   const dob = new Date(input.dob);
   if (Number.isNaN(dob.getTime())) return { error: 'Date of birth is not a valid date.' };
 
-  const classification = classifyAge(dob, settings.ageReferenceDate);
+  const classification = classifyAge(dob, event.ageReferenceDate);
   if (!classification.ok) return { error: classification.reason };
 
   // Duplicate guard — the spec asks for these to be flagged before submission.
@@ -165,7 +167,7 @@ export async function createParticipant(
     return { error: 'Select at least one event (Kyorugi, Poomsae, or both) for an athlete.' };
   }
 
-  const code = await nextParticipantCode(settings.edition);
+  const code = await nextParticipantCode(event.shortCode);
 
   let participant;
   try {
@@ -218,16 +220,16 @@ export async function createParticipant(
     detail: `${participant.code} ${participant.name} (${classification.ageCategory})`,
   });
 
-  revalidatePath('/school/participants');
-  revalidatePath('/school');
-  redirect(`/school/participants?created=${participant.code}${warnings.length ? `&warn=${encodeURIComponent(warnings.join(' | '))}` : ''}`);
+  revalidatePath(schoolPath(event.slug, 'participants'));
+  revalidatePath(schoolPath(event.slug));
+  redirect(`${schoolPath(event.slug, 'participants')}?created=${participant.code}${warnings.length ? `&warn=${encodeURIComponent(warnings.join(' | '))}` : ''}`);
 }
 
 export async function updateParticipant(
   _prev: SchoolActionState,
   formData: FormData,
 ): Promise<SchoolActionState> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
   const participantId = String(formData.get('participantId') ?? '');
 
   const existing = await db.participant.findFirst({
@@ -236,16 +238,15 @@ export async function updateParticipant(
   });
   if (!existing) return { error: 'Participant not found.' };
 
-  const blocked = await assertRegistrationOpen(school.id);
+  const blocked = await assertRegistrationOpen(event, school.id);
   if (blocked) return { error: blocked };
 
   const parsed = readParticipantForm(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]!.message };
   const input = parsed.data;
 
-  const settings = await getSettings();
   const dob = new Date(input.dob);
-  const classification = classifyAge(dob, settings.ageReferenceDate);
+  const classification = classifyAge(dob, event.ageReferenceDate);
   if (!classification.ok) return { error: classification.reason };
 
   const warnings: string[] = [];
@@ -302,9 +303,9 @@ export async function updateParticipant(
     detail: detailsChanged ? 'Details changed — accreditation card reissued' : 'Contact details updated',
   });
 
-  revalidatePath('/school/participants');
-  revalidatePath(`/school/participants/${existing.id}`);
-  revalidatePath('/school/accreditation');
+  revalidatePath(schoolPath(event.slug, 'participants'));
+  revalidatePath(schoolPath(event.slug, `participants/${existing.id}`));
+  revalidatePath(schoolPath(event.slug, 'accreditation'));
 
   return {
     ok: true,
@@ -316,7 +317,7 @@ export async function updateParticipant(
 }
 
 export async function deleteParticipant(formData: FormData): Promise<void> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
   const participantId = String(formData.get('participantId') ?? '');
 
   const participant = await db.participant.findFirst({
@@ -355,9 +356,9 @@ export async function deleteParticipant(formData: FormData): Promise<void> {
   }
 
   await recalcSchoolFees(school.id);
-  revalidatePath('/school/participants');
-  revalidatePath('/school');
-  redirect('/school/participants');
+  revalidatePath(schoolPath(event.slug, 'participants'));
+  revalidatePath(schoolPath(event.slug));
+  redirect(schoolPath(event.slug, 'participants'));
 }
 
 // ---------------------------------------------------------------------------
@@ -422,9 +423,9 @@ export async function bulkUploadParticipants(
   _prev: BulkUploadState,
   formData: FormData,
 ): Promise<BulkUploadState> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
 
-  const blocked = await assertRegistrationOpen(school.id);
+  const blocked = await assertRegistrationOpen(event, school.id);
   if (blocked) return { error: blocked };
 
   const file = formData.get('csv') as File | null;
@@ -439,7 +440,6 @@ export async function bulkUploadParticipants(
     };
   }
 
-  const settings = await getSettings();
   const results: BulkRowResult[] = [];
   const seenInFile = new Set<string>();
 
@@ -465,7 +465,7 @@ export async function bulkUploadParticipants(
       continue;
     }
 
-    const classification = classifyAge(dob, settings.ageReferenceDate);
+    const classification = classifyAge(dob, event.ageReferenceDate);
     if (!classification.ok) {
       results.push({ row: rowNo, name, status: 'ERROR', detail: classification.reason });
       continue;
@@ -513,7 +513,7 @@ export async function bulkUploadParticipants(
 
     const participant = await db.participant.create({
       data: {
-        code: await nextParticipantCode(settings.edition),
+        code: await nextParticipantCode(event.shortCode),
         schoolId: school.id,
         name,
         gender,
@@ -559,8 +559,8 @@ export async function bulkUploadParticipants(
     detail: `${summary.created} created, ${summary.skipped} skipped, ${summary.failed} failed`,
   });
 
-  revalidatePath('/school/participants');
-  revalidatePath('/school');
+  revalidatePath(schoolPath(event.slug, 'participants'));
+  revalidatePath(schoolPath(event.slug));
 
   return { summary, rows: results };
 }
@@ -572,7 +572,7 @@ export async function submitRegistration(
   _prev: SchoolActionState,
   _formData: FormData,
 ): Promise<SchoolActionState> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
 
   const count = await db.participant.count({ where: { schoolId: school.id } });
   if (count === 0) return { error: 'Add at least one participant before submitting.' };
@@ -591,7 +591,7 @@ export async function submitRegistration(
     detail: `${count} participant(s)`,
   });
 
-  revalidatePath('/school');
+  revalidatePath(schoolPath(event.slug));
   return {
     ok: true,
     message: `Submitted ${count} participant${count === 1 ? '' : 's'} for review. You can keep editing until registration closes.`,
@@ -607,7 +607,7 @@ export async function recordSchoolPayment(
   _prev: SchoolActionState,
   formData: FormData,
 ): Promise<SchoolActionState> {
-  const { session, school } = await requireSchool();
+  const { session, school, event } = await requireSchool();
 
   const amount = Number.parseInt(String(formData.get('amount') ?? ''), 10);
   const method = String(formData.get('method') ?? 'ONLINE');
@@ -629,7 +629,7 @@ export async function recordSchoolPayment(
     detail: `₹${amount} via ${method} (${reference})`,
   });
 
-  revalidatePath('/school/payment');
-  revalidatePath('/school');
+  revalidatePath(schoolPath(event.slug, 'payment'));
+  revalidatePath(schoolPath(event.slug));
   return { ok: true, message: `Recorded ₹${amount}. A receipt confirmation has been logged against your school.` };
 }

@@ -20,6 +20,14 @@ export type SessionPayload = {
   name: string;
   role: Role;
   schoolId: string | null;
+  /**
+   * The event a SCHOOL/REFEREE login belongs to; null for SUPER_ADMIN.
+   * The slug is carried alongside the id purely so `homeFor()` can build a
+   * redirect target synchronously — authorisation always re-derives the event
+   * from the database, never from these claims.
+   */
+  eventId: string | null;
+  eventSlug: string | null;
 };
 
 export async function createSession(payload: SessionPayload): Promise<void> {
@@ -57,6 +65,8 @@ export async function readSession(): Promise<SessionPayload | null> {
       name: String(payload.name),
       role: payload.role as Role,
       schoolId: (payload.schoolId as string | null) ?? null,
+      eventId: (payload.eventId as string | null) ?? null,
+      eventSlug: (payload.eventSlug as string | null) ?? null,
     };
   } catch {
     return null;

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import {
   createBout,
   createCategory,
+  createEvent,
   createEntry,
   createMat,
   createParticipant,
@@ -12,16 +13,19 @@ import {
 } from '@/test/factories';
 import { autoSchedule, detectScheduleConflicts } from './tournament';
 
+let event: Awaited<ReturnType<typeof createEvent>>;
+
 beforeEach(async () => {
   await resetDb();
+  event = await createEvent();
 });
 
 describe('autoSchedule', () => {
   it('assigns each bout to whichever mat frees up soonest, in round/category/position order', async () => {
-    const matA = await createMat({ sortOrder: 1 });
-    const matB = await createMat({ sortOrder: 2 });
-    const catA = await createCategory({ sortOrder: 1 });
-    const catB = await createCategory({ sortOrder: 2 });
+    const matA = await createMat(event.id, { sortOrder: 1 });
+    const matB = await createMat(event.id, { sortOrder: 2 });
+    const catA = await createCategory(event.id, { sortOrder: 1 });
+    const catB = await createCategory(event.id, { sortOrder: 2 });
 
     const boutA0 = await createBout({ categoryId: catA.id, position: 0 });
     const boutA1 = await createBout({ categoryId: catA.id, position: 1 });
@@ -29,7 +33,7 @@ describe('autoSchedule', () => {
     const boutB1 = await createBout({ categoryId: catB.id, position: 1 });
 
     const startAt = new Date(2026, 8, 20, 9, 0, 0);
-    const scheduled = await autoSchedule(startAt, 10);
+    const scheduled = await autoSchedule(event.id, startAt, 10);
     expect(scheduled).toBe(4);
 
     const tenMinLater = new Date(startAt.getTime() + 10 * 60_000);
@@ -44,13 +48,13 @@ describe('autoSchedule', () => {
   });
 
   it('renumbers bouts in category-then-round-then-position order as a side effect', async () => {
-    await createMat(); // autoSchedule no-ops (and skips renumbering) with zero active mats
-    const catA = await createCategory({ sortOrder: 1 });
-    const catB = await createCategory({ sortOrder: 2 });
+    await createMat(event.id); // autoSchedule no-ops (and skips renumbering) with zero active mats
+    const catA = await createCategory(event.id, { sortOrder: 1 });
+    const catB = await createCategory(event.id, { sortOrder: 2 });
     const boutB0 = await createBout({ categoryId: catB.id, position: 0 });
     const boutA0 = await createBout({ categoryId: catA.id, position: 0 });
 
-    await autoSchedule(new Date(2026, 8, 20, 9, 0, 0), 10);
+    await autoSchedule(event.id, new Date(2026, 8, 20, 9, 0, 0), 10);
 
     const [refreshedA, refreshedB] = await Promise.all([
       db.bout.findUniqueOrThrow({ where: { id: boutA0.id } }),
@@ -60,15 +64,15 @@ describe('autoSchedule', () => {
   });
 
   it('ignores inactive mats and leaves BYE/COMPLETED bouts untouched', async () => {
-    const activeMat = await createMat({ sortOrder: 1, active: true });
-    await createMat({ sortOrder: 2, active: false });
-    const cat = await createCategory();
+    const activeMat = await createMat(event.id, { sortOrder: 1, active: true });
+    await createMat(event.id, { sortOrder: 2, active: false });
+    const cat = await createCategory(event.id);
 
     const byeBout = await createBout({ categoryId: cat.id, position: 0, status: 'BYE' });
     const completedBout = await createBout({ categoryId: cat.id, position: 1, status: 'COMPLETED' });
     const openBout = await createBout({ categoryId: cat.id, position: 2, status: 'SCHEDULED' });
 
-    const scheduled = await autoSchedule(new Date(2026, 8, 20, 9, 0, 0), 10);
+    const scheduled = await autoSchedule(event.id, new Date(2026, 8, 20, 9, 0, 0), 10);
     expect(scheduled).toBe(1);
 
     const [bye, completed, open] = await Promise.all([
@@ -84,9 +88,9 @@ describe('autoSchedule', () => {
 
 describe('detectScheduleConflicts', () => {
   it('returns no conflicts for a cleanly separated schedule', async () => {
-    const mat = await createMat();
-    const cat = await createCategory();
-    const school = await createSchool();
+    const mat = await createMat(event.id);
+    const cat = await createCategory(event.id);
+    const school = await createSchool(event.id);
     const [p1, p2, p3, p4] = await Promise.all([
       createParticipant(school.id),
       createParticipant(school.id),
@@ -110,15 +114,15 @@ describe('detectScheduleConflicts', () => {
       scheduledAt: new Date(2026, 8, 20, 9, 30, 0), // same mat, well outside the overlap window
     });
 
-    expect(await detectScheduleConflicts()).toEqual([]);
+    expect(await detectScheduleConflicts(event.id)).toEqual([]);
   });
 
   it('flags an athlete scheduled on two mats at the same time', async () => {
-    const school = await createSchool();
+    const school = await createSchool(event.id);
     const athlete = await createParticipant(school.id, { name: 'Double Booked Athlete' });
-    const [catA, catB] = await Promise.all([createCategory(), createCategory()]);
+    const [catA, catB] = await Promise.all([createCategory(event.id), createCategory(event.id)]);
     const [opponentA, opponentB] = await Promise.all([createParticipant(school.id), createParticipant(school.id)]);
-    const [matA, matB] = await Promise.all([createMat(), createMat()]);
+    const [matA, matB] = await Promise.all([createMat(event.id), createMat(event.id)]);
     const at = new Date(2026, 8, 20, 10, 0, 0);
 
     await createBout({
@@ -136,16 +140,16 @@ describe('detectScheduleConflicts', () => {
       scheduledAt: at,
     });
 
-    const conflicts = await detectScheduleConflicts();
+    const conflicts = await detectScheduleConflicts(event.id);
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]).toMatchObject({ kind: 'ATHLETE_DOUBLE_BOOKED' });
     expect(conflicts[0]!.message).toContain('Double Booked Athlete');
   });
 
   it('flags two different bouts overlapping on the same mat', async () => {
-    const mat = await createMat();
-    const [catA, catB] = await Promise.all([createCategory(), createCategory()]);
-    const school = await createSchool();
+    const mat = await createMat(event.id);
+    const [catA, catB] = await Promise.all([createCategory(event.id), createCategory(event.id)]);
+    const school = await createSchool(event.id);
     const [p1, p2, p3, p4] = await Promise.all([
       createParticipant(school.id),
       createParticipant(school.id),
@@ -169,15 +173,15 @@ describe('detectScheduleConflicts', () => {
       scheduledAt: at,
     });
 
-    const conflicts = await detectScheduleConflicts();
+    const conflicts = await detectScheduleConflicts(event.id);
     expect(conflicts.some((c) => c.kind === 'MAT_OVERLAP')).toBe(true);
   });
 
   it('flags a referee assigned to two mats at the same time', async () => {
-    const referee = await createReferee();
-    const [matA, matB] = await Promise.all([createMat(), createMat()]);
-    const [catA, catB] = await Promise.all([createCategory(), createCategory()]);
-    const school = await createSchool();
+    const referee = await createReferee(event.id);
+    const [matA, matB] = await Promise.all([createMat(event.id), createMat(event.id)]);
+    const [catA, catB] = await Promise.all([createCategory(event.id), createCategory(event.id)]);
+    const school = await createSchool(event.id);
     const [p1, p2, p3, p4] = await Promise.all([
       createParticipant(school.id),
       createParticipant(school.id),
@@ -203,14 +207,14 @@ describe('detectScheduleConflicts', () => {
       refereeId: referee.id,
     });
 
-    const conflicts = await detectScheduleConflicts();
+    const conflicts = await detectScheduleConflicts(event.id);
     expect(conflicts.some((c) => c.kind === 'REFEREE_DOUBLE_BOOKED')).toBe(true);
   });
 
   it('flags a bout scheduled at or before the bout that feeds it', async () => {
-    const cat = await createCategory();
-    const mat = await createMat();
-    const school = await createSchool();
+    const cat = await createCategory(event.id);
+    const mat = await createMat(event.id);
+    const school = await createSchool(event.id);
     const [p1, p2] = await Promise.all([createParticipant(school.id), createParticipant(school.id)]);
 
     const final = await createBout({
@@ -234,7 +238,7 @@ describe('detectScheduleConflicts', () => {
       nextBoutSlot: 'RED',
     });
 
-    const conflicts = await detectScheduleConflicts();
+    const conflicts = await detectScheduleConflicts(event.id);
     expect(conflicts.some((c) => c.kind === 'UNSCHEDULED_DEPENDENCY')).toBe(true);
   });
 });

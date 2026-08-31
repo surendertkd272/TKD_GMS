@@ -1,5 +1,5 @@
 import 'server-only';
-import { db, getSettings } from './db';
+import { db } from './db';
 
 /** Column order of the bulk-upload CSV template and its parser aliases. */
 export const CSV_TEMPLATE_HEADERS = [
@@ -18,15 +18,20 @@ export const CSV_TEMPLATE_HEADERS = [
 ];
 
 export async function recalcSchoolFees(schoolId: string): Promise<void> {
-  const settings = await getSettings();
   const athletes = await db.participant.count({
     where: { schoolId, personRole: 'ATHLETE', status: { not: 'REJECTED' } },
   });
   const paid = await db.payment.aggregate({ where: { schoolId }, _sum: { amount: true } });
 
-  const amountDue = athletes * settings.feePerParticipant;
+  // The fee comes from the school's own event.
+  const school = await db.school.findUnique({
+    where: { id: schoolId },
+    select: { paymentStatus: true, event: { select: { feePerParticipant: true } } },
+  });
+  if (!school) return;
+
+  const amountDue = athletes * school.event.feePerParticipant;
   const amountPaid = paid._sum.amount ?? 0;
-  const school = await db.school.findUnique({ where: { id: schoolId }, select: { paymentStatus: true } });
 
   const paymentStatus =
     school?.paymentStatus === 'WAIVED'

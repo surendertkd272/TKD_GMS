@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -10,20 +11,20 @@ export const db =
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
 
-/** EventSettings is a singleton row (id = 1). Created by the seed. */
-export async function getSettings() {
-  const existing = await db.eventSettings.findUnique({ where: { id: 1 } });
-  if (existing) return existing;
+/**
+ * Event lookups are wrapped in React's `cache()` because a layout's data is NOT
+ * inherited by its child pages — without this, every page under
+ * /events/[slug] would re-query the same row on the same request.
+ */
+export const getEventBySlug = cache(async (slug: string) => {
+  return db.event.findUnique({ where: { slug } });
+});
 
-  const year = new Date().getFullYear();
-  return db.eventSettings.create({
-    data: {
-      id: 1,
-      startDate: new Date(year, 8, 20),
-      endDate: new Date(year, 8, 21),
-      registrationOpensAt: new Date(year, 6, 1),
-      registrationClosesAt: new Date(year, 8, 5),
-      ageReferenceDate: new Date(year, 11, 31),
-    },
-  });
-}
+export const getEventById = cache(async (id: string) => {
+  return db.event.findUnique({ where: { id } });
+});
+
+/** The event an authenticated school/referee belongs to. */
+export const getEventForUser = cache(async (eventId: string) => {
+  return db.event.findUnique({ where: { id: eventId } });
+});

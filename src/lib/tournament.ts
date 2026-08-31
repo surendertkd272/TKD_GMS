@@ -13,14 +13,16 @@ export type CategoryMatch =
   | { ok: false; reason: string };
 
 export async function resolveCategory(input: {
-  event: 'KYORUGI' | 'POOMSAE';
+  eventId: string;
+  discipline: 'KYORUGI' | 'POOMSAE';
   ageCategory: string;
   gender: string;
   weightKg: number;
 }): Promise<CategoryMatch> {
   const candidates = await db.category.findMany({
     where: {
-      event: input.event,
+      eventId: input.eventId,
+      discipline: input.discipline,
       ageCategory: input.ageCategory,
       gender: { in: [input.gender, 'MIXED'] },
       active: true,
@@ -29,10 +31,10 @@ export async function resolveCategory(input: {
   });
 
   if (!candidates.length) {
-    return { ok: false, reason: `No ${input.event} category is configured for this age group and gender.` };
+    return { ok: false, reason: `No ${input.discipline} category is configured for this age group and gender.` };
   }
 
-  if (input.event === 'POOMSAE') {
+  if (input.discipline === 'POOMSAE') {
     const recognised = candidates.find((c) => c.poomsaeType === 'RECOGNISED') ?? candidates[0]!;
     return { ok: true, categoryId: recognised.id, categoryName: recognised.name };
   }
@@ -60,11 +62,11 @@ export async function resolveCategory(input: {
  */
 export async function syncParticipantEntries(
   participantId: string,
-  events: ('KYORUGI' | 'POOMSAE')[],
+  disciplines: ('KYORUGI' | 'POOMSAE')[],
 ): Promise<{ created: string[]; removed: number; warnings: string[] }> {
   const participant = await db.participant.findUnique({
     where: { id: participantId },
-    include: { entries: { include: { category: true } } },
+    include: { entries: { include: { category: true } }, school: { select: { eventId: true } } },
   });
   if (!participant) throw new Error('Participant not found');
 
@@ -78,16 +80,17 @@ export async function syncParticipantEntries(
     return { created, removed: removed.count, warnings };
   }
 
-  for (const event of events) {
+  for (const discipline of disciplines) {
     const match = await resolveCategory({
-      event,
+      eventId: participant.school.eventId,
+      discipline,
       ageCategory: participant.ageCategory,
       gender: participant.gender,
       weightKg: participant.weightKg,
     });
 
     if (!match.ok) {
-      warnings.push(`${event}: ${match.reason}`);
+      warnings.push(`${discipline}: ${match.reason}`);
       continue;
     }
 
@@ -98,12 +101,12 @@ export async function syncParticipantEntries(
     }
 
     // Never silently move an athlete out of a division whose draw is already live.
-    const staleInEvent = participant.entries.filter((e) => e.category.event === event);
-    const locked = staleInEvent.find((e) => e.category.drawStatus === 'PUBLISHED' || e.category.drawStatus === 'LOCKED');
+    const staleInDiscipline = participant.entries.filter((e) => e.category.discipline === discipline);
+    const locked = staleInDiscipline.find((e) => e.category.drawStatus === 'PUBLISHED' || e.category.drawStatus === 'LOCKED');
     if (locked) {
       keepEntryIds.push(locked.id);
       warnings.push(
-        `${event}: draw for ${locked.category.name} is already published — division change to ${match.categoryName} needs a Super Admin.`,
+        `${discipline}: draw for ${locked.category.name} is already published — division change to ${match.categoryName} needs a Super Admin.`,
       );
       continue;
     }
@@ -150,7 +153,7 @@ export async function generateDraw(
   const eligible = category.entries.filter((e) => e.participant.status === 'APPROVED');
   if (eligible.length < 1) return { ok: false, error: 'No approved entries in this category yet.' };
 
-  if (category.event === 'POOMSAE') {
+  if (category.discipline === 'POOMSAE') {
     // Poomsae is a ranked performance order, not a bracket.
     await db.$transaction(async (tx) => {
       const shuffled = [...eligible].sort(() => Math.random() - 0.5);
@@ -231,10 +234,10 @@ export async function generateDraw(
   return { ok: true, bouts: bracket.bouts.length, entrants: bracket.entrantCount, byes: bracket.byes };
 }
 
-/** Assign event-wide running bout numbers across every published category. */
-export async function renumberBouts(): Promise<number> {
+/** Assign running bout numbers across every published category in one event. */
+export async function renumberBouts(eventId: string): Promise<number> {
   const bouts = await db.bout.findMany({
-    where: { status: { not: 'BYE' } },
+    where: { status: { not: 'BYE' }, category: { eventId } },
     orderBy: [{ category: { sortOrder: 'asc' } }, { round: 'asc' }, { position: 'asc' }],
     select: { id: true },
   });
@@ -431,7 +434,7 @@ export async function finalizePoomsae(
     include: { entries: { where: { status: 'ACTIVE' }, include: { poomsaeScores: true } } },
   });
   if (!category) return { ok: false, error: 'Category not found.' };
-  if (category.event !== 'POOMSAE') return { ok: false, error: 'This category is not a Poomsae event.' };
+  if (category.discipline !== 'POOMSAE') return { ok: false, error: 'This category is not a Poomsae event.' };
 
   const unscored = category.entries.filter((e) => e.poomsaeScores.length === 0);
   if (unscored.length) {
@@ -506,9 +509,9 @@ const SLOT_MINUTES = 12; // nominal mat time per bout, used for overlap detectio
  * once — plus mat/referee double-booking and bouts scheduled before the bout
  * that feeds them.
  */
-export async function detectScheduleConflicts(): Promise<ScheduleConflict[]> {
+export async function detectScheduleConflicts(eventId: string): Promise<ScheduleConflict[]> {
   const bouts = await db.bout.findMany({
-    where: { scheduledAt: { not: null }, status: { not: 'BYE' } },
+    where: { scheduledAt: { not: null }, status: { not: 'BYE' }, category: { eventId } },
     include: {
       category: { select: { name: true } },
       mat: { select: { name: true } },
@@ -588,13 +591,17 @@ export async function detectScheduleConflicts(): Promise<ScheduleConflict[]> {
 }
 
 /** Sequential mat assignment: fills each mat round-by-round from a start time. */
-export async function autoSchedule(startAt: Date, minutesPerBout = SLOT_MINUTES): Promise<number> {
-  const mats = await db.mat.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } });
+export async function autoSchedule(
+  eventId: string,
+  startAt: Date,
+  minutesPerBout = SLOT_MINUTES,
+): Promise<number> {
+  const mats = await db.mat.findMany({ where: { eventId, active: true }, orderBy: { sortOrder: 'asc' } });
   if (!mats.length) return 0;
 
   const bouts = await db.bout.findMany({
-    where: { status: { in: ['SCHEDULED', 'IN_PROGRESS'] } },
-    include: { category: { select: { sortOrder: true, event: true } } },
+    where: { status: { in: ['SCHEDULED', 'IN_PROGRESS'] }, category: { eventId } },
+    include: { category: { select: { sortOrder: true, discipline: true } } },
     orderBy: [{ round: 'asc' }, { category: { sortOrder: 'asc' } }, { position: 'asc' }],
   });
 
@@ -620,7 +627,7 @@ export async function autoSchedule(startAt: Date, minutesPerBout = SLOT_MINUTES)
     }
   }
 
-  await renumberBouts();
+  await renumberBouts(eventId);
   return scheduled;
 }
 

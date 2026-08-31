@@ -1,16 +1,16 @@
 import 'server-only';
-import { db, getSettings } from '@/lib/db';
+import type { Event } from '@prisma/client';
+import { db } from '@/lib/db';
 import { buildBatchCardPdf, buildSingleCardPdf, type CardData, type CardEvent } from './card';
 import { fmtDate } from '@/lib/format';
 
-export async function cardEventContext(): Promise<CardEvent> {
-  const settings = await getSettings();
-  const sameDay = fmtDate(settings.startDate) === fmtDate(settings.endDate);
+export function cardEventContext(event: Event): CardEvent {
+  const sameDay = fmtDate(event.startDate) === fmtDate(event.endDate);
   return {
-    eventName: settings.eventName,
-    edition: settings.edition,
-    venue: settings.venue,
-    dateLabel: sameDay ? fmtDate(settings.startDate) : `${fmtDate(settings.startDate)} – ${fmtDate(settings.endDate)}`,
+    eventName: event.eventName,
+    edition: event.edition,
+    venue: event.venue,
+    dateLabel: sameDay ? fmtDate(event.startDate) : `${fmtDate(event.startDate)} – ${fmtDate(event.endDate)}`,
     baseUrl: process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000',
   };
 }
@@ -21,19 +21,19 @@ export async function cardDataForSchool(schoolId: string): Promise<CardData[]> {
     where: { schoolId, status: 'APPROVED', school: { status: 'APPROVED' } },
     include: {
       school: { select: { name: true, code: true } },
-      entries: { include: { category: { select: { event: true } } } },
+      entries: { include: { category: { select: { discipline: true } } } },
     },
     orderBy: [{ personRole: 'asc' }, { name: 'asc' }],
   });
   return participants.map(toCardData);
 }
 
-export async function cardDataForAll(): Promise<CardData[]> {
+export async function cardDataForAll(eventId: string): Promise<CardData[]> {
   const participants = await db.participant.findMany({
-    where: { status: 'APPROVED', school: { status: 'APPROVED' } },
+    where: { status: 'APPROVED', school: { status: 'APPROVED', eventId } },
     include: {
       school: { select: { name: true, code: true } },
-      entries: { include: { category: { select: { event: true } } } },
+      entries: { include: { category: { select: { discipline: true } } } },
     },
     orderBy: [{ school: { name: 'asc' } }, { personRole: 'asc' }, { name: 'asc' }],
   });
@@ -45,7 +45,7 @@ export async function cardDataForParticipant(participantId: string): Promise<Car
     where: { id: participantId },
     include: {
       school: { select: { name: true, code: true } },
-      entries: { include: { category: { select: { event: true } } } },
+      entries: { include: { category: { select: { discipline: true } } } },
     },
   });
   return participant ? toCardData(participant) : null;
@@ -62,11 +62,11 @@ type ParticipantRow = {
   photoPath: string | null;
   accreditationVersion: number;
   school: { name: string; code: string };
-  entries: { category: { event: string } }[];
+  entries: { category: { discipline: string } }[];
 };
 
 function toCardData(participant: ParticipantRow): CardData {
-  const events = [...new Set(participant.entries.map((e) => (e.category.event === 'KYORUGI' ? 'Kyorugi' : 'Poomsae')))];
+  const events = [...new Set(participant.entries.map((e) => (e.category.discipline === 'KYORUGI' ? 'Kyorugi' : 'Poomsae')))];
   return {
     code: participant.code,
     name: participant.name,
@@ -83,20 +83,20 @@ function toCardData(participant: ParticipantRow): CardData {
   };
 }
 
-export async function renderSingleCard(participantId: string): Promise<Uint8Array | null> {
-  const [data, event] = await Promise.all([cardDataForParticipant(participantId), cardEventContext()]);
+export async function renderSingleCard(eventRow: Event, participantId: string): Promise<Uint8Array | null> {
+  const data = await cardDataForParticipant(participantId);
   if (!data) return null;
-  return buildSingleCardPdf(data, event);
+  return buildSingleCardPdf(data, cardEventContext(eventRow));
 }
 
-export async function renderBatchSheet(cards: CardData[]): Promise<Uint8Array> {
-  return buildBatchCardPdf(cards, await cardEventContext());
+export async function renderBatchSheet(eventRow: Event, cards: CardData[]): Promise<Uint8Array> {
+  return buildBatchCardPdf(cards, cardEventContext(eventRow));
 }
 
 /** Individual-size cards concatenated into one file, one card per page. */
-export async function renderIndividualCards(cards: CardData[]): Promise<Uint8Array> {
+export async function renderIndividualCards(eventRow: Event, cards: CardData[]): Promise<Uint8Array> {
   const { PDFDocument } = await import('pdf-lib');
-  const event = await cardEventContext();
+  const event = cardEventContext(eventRow);
   const merged = await PDFDocument.create();
   merged.setTitle(`Accreditation cards — ${cards.length}`);
 
