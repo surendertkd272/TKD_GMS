@@ -18,6 +18,9 @@ export const ADMIN_EVENTS = '/admin/events';
 
 export const ADMIN_EVENT_NEW = '/admin/events/new';
 
+/** Super Admin's own account (password change). */
+export const ADMIN_ACCOUNT = '/admin/account';
+
 /** Admin pages for one event: adminPath(id), adminPath(id, 'draws'), … */
 export function adminPath(eventId: string, sub = ''): string {
   return sub ? `/admin/events/${eventId}/${sub}` : `/admin/events/${eventId}`;

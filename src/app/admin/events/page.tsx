@@ -3,16 +3,18 @@ import { requireAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logoutAction } from '@/actions/auth';
 import { toggleEventListing } from '@/actions/events';
-import { Card, Empty, PageHeader, StatusBadge, TableWrap } from '@/components/ui';
+import { Card, Empty, Notice, PageHeader, StatusBadge, TableWrap } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
 import { fmtDate } from '@/lib/format';
-import { ADMIN_EVENT_NEW, adminPath, eventPath } from '@/lib/paths';
+import { isOnDefaultPassword } from '@/lib/account';
+import { ADMIN_ACCOUNT, ADMIN_EVENT_NEW, adminPath, eventPath } from '@/lib/paths';
 
 export const metadata = { title: 'Events' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminEventsPage() {
   const session = await requireAdmin();
+  const onDefaultPassword = await isOnDefaultPassword(session.userId);
 
   const events = await db.event.findMany({
     orderBy: { startDate: 'desc' },
@@ -40,7 +42,9 @@ export default async function AdminEventsPage() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-ink-muted sm:inline">{session.name}</span>
+            <Link href={ADMIN_ACCOUNT} className="hidden text-sm text-ink-muted hover:text-ink sm:inline">
+              {session.name}
+            </Link>
             <form action={logoutAction}>
               <button className="btn-quiet btn-sm" type="submit">
                 Sign out
@@ -60,6 +64,18 @@ export default async function AdminEventsPage() {
             </Link>
           }
         />
+
+        {onDefaultPassword && (
+          <div className="mb-6">
+            <Notice kind="warn">
+              This account is still on the seeded default password.{' '}
+              <Link href={ADMIN_ACCOUNT} className="font-medium underline">
+                Change it now
+              </Link>{' '}
+              — anyone who knows the default can sign in as the organiser.
+            </Notice>
+          </div>
+        )}
 
         {events.length === 0 ? (
           <Empty

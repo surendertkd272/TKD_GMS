@@ -44,16 +44,19 @@ export default async function LoginPage({
         </Link>
       </p>
 
-      <div className="mt-10 rounded-lg border border-surface-line bg-surface-sunk/60 p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-          Demo logins (seeded)
-        </p>
-        <ul className="mt-2 space-y-1 font-mono text-xs text-ink-soft">
-          <li>admin@taekwondogms.org · Admin@123</li>
-          <li>coach@demotkd.edu.in · School@123</li>
-          <li>referee1@taekwondogms.org · Referee@123</li>
-        </ul>
-      </div>
+      {/* Seeded credentials are a local convenience only — never advertise them
+          on a deployed site. */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="mt-10 rounded-lg border border-surface-line bg-surface-sunk/60 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+            Demo logins (seeded, development only)
+          </p>
+          <ul className="mt-2 space-y-1 font-mono text-xs text-ink-soft">
+            <li>coach@demotkd.edu.in · School@123</li>
+            <li>referee1@taekwondogms.org · Referee@123</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
