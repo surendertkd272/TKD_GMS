@@ -28,7 +28,7 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-surface-sunk">
       {/* Mobile bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-surface-line bg-white px-4 py-3 lg:hidden">
+      <div className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-surface-line bg-white px-4 py-3 lg:hidden">
         <Brand eventName={eventName} edition={edition} href="/" compact />
         <form action={logoutAction}>
           <button className="btn-quiet btn-sm" type="submit">
@@ -38,7 +38,7 @@ export function AppShell({
       </div>
 
       <div className="lg:flex">
-        <aside className="hidden w-64 shrink-0 border-r border-surface-line bg-white lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
+        <aside className="no-print hidden w-64 shrink-0 border-r border-surface-line bg-white lg:flex lg:h-screen lg:flex-col lg:sticky lg:top-0">
           <div className="border-b border-surface-line px-4 py-4">
             <Brand eventName={eventName} edition={edition} href="/" compact />
           </div>
@@ -85,7 +85,7 @@ export function AppShell({
 
         <main className="min-w-0 flex-1">
           {/* Mobile nav strip */}
-          <div className="flex gap-1 overflow-x-auto border-b border-surface-line bg-white px-3 py-2 lg:hidden">
+          <div className="no-print flex gap-1 overflow-x-auto border-b border-surface-line bg-white px-3 py-2 lg:hidden">
             {sections.flatMap((s) => s.items).map((item) => (
               <NavLink key={item.href} href={item.href} exact={item.exact}>
                 <span className="whitespace-nowrap text-xs">{item.label}</span>

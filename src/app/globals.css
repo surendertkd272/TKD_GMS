@@ -182,6 +182,26 @@
 
 @media print {
   .no-print { display: none !important; }
-  body { background: #fff; }
+  body, .bg-surface-sunk { background: #fff !important; }
   .card { box-shadow: none; border-color: #ccc; }
+}
+
+/* ---- Paper fallback sheets (brackets, scoring sheets) — dark borders and
+   generous cell padding so a printed/photocopied sheet is legible and has
+   room to write scores by hand. ---- */
+.print-table {
+  @apply w-full border-collapse text-sm;
+}
+.print-table th,
+.print-table td {
+  @apply border border-ink/60 px-2.5 py-2 text-left align-middle;
+}
+.print-table thead th {
+  @apply bg-surface-sunk text-[11px] font-semibold uppercase tracking-wide text-ink;
+}
+.print-blank {
+  @apply inline-block h-5 min-w-[3rem] border-b border-ink/60;
+}
+.print-sheet-header {
+  @apply mb-4 flex items-start justify-between gap-4 border-b-2 border-ink pb-3;
 }

@@ -37,6 +37,11 @@ export default async function AdminDrawsPage({
       <PageHeader
         title="Draws & brackets"
         subtitle="Kyorugi generates a seeded single-elimination bracket with automatic byes; Poomsae generates a randomised performance order."
+        actions={
+          <Link href="/admin/draws/print" className="btn-ghost" target="_blank">
+            Print paper backup
+          </Link>
+        }
       />
 
       <div className="space-y-5">

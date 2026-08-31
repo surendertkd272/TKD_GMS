@@ -48,6 +48,9 @@ export default async function AdminCategoryDraw({ params }: { params: Promise<{ 
         }
         actions={
           <>
+            <Link href={`/admin/draws/print?categoryId=${category.id}`} className="btn-ghost" target="_blank">
+              Print
+            </Link>
             <Link href={`/results/${category.id}`} className="btn-ghost" target="_blank">
               Public view
             </Link>

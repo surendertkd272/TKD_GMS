@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth';
 import { db, getSettings } from '@/lib/db';
 import { detectScheduleConflicts } from '@/lib/tournament';
@@ -53,6 +54,11 @@ export default async function AdminSchedulePage({
       <PageHeader
         title="Schedule & mats"
         subtitle="Assign every bout to a mat and time slot. Conflicts — an athlete needed on two mats at once, a double-booked mat or referee, a bout before its feeder — are flagged automatically."
+        actions={
+          <Link href="/admin/schedule/print" className="btn-ghost" target="_blank">
+            Print scoring sheets
+          </Link>
+        }
       />
 
       <div className="space-y-5">
