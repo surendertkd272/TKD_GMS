@@ -148,9 +148,15 @@ export async function renderCertificates(event: Event, certificateIds: string[])
  */
 export async function dispatchCertificates(
   eventRow: Event,
-  options: { schoolId?: string; categoryId?: string; onlyUnsent?: boolean },
+  options: { schoolId?: string; categoryId?: string; onlyUnsent?: boolean; limit?: number },
   actorId: string,
-): Promise<{ schools: number; emails: number; certificates: number; failures: string[] }> {
+): Promise<{
+  schools: number;
+  emails: number;
+  certificates: number;
+  failures: string[];
+  remaining: number;
+}> {
   const event = certificateEventContext(eventRow);
 
   const certificates = await db.certificate.findMany({
@@ -172,11 +178,20 @@ export async function dispatchCertificates(
     bySchool.set(key, [...(bySchool.get(key) ?? []), cert]);
   }
 
+  // Each school costs a PDF render plus an SMTP round trip, so a whole
+  // championship will not finish inside a serverless function's budget. Send a
+  // slice and report what is left; `emailedAt` makes the next call resume
+  // rather than re-send.
+  const allSchools = [...bySchool.keys()];
+  const batch = options.limit && options.limit > 0 ? allSchools.slice(0, options.limit) : allSchools;
+  const remaining = allSchools.length - batch.length;
+
   const failures: string[] = [];
   let emails = 0;
   let sentCount = 0;
 
-  for (const [, group] of bySchool) {
+  for (const schoolId of batch) {
+    const group = bySchool.get(schoolId)!;
     const school = group[0]!.participant.school;
     const to = school.contactEmail;
     if (!to) {
@@ -246,8 +261,10 @@ export async function dispatchCertificates(
     userId: actorId,
     action: 'CERTIFICATES_EMAILED',
     entityType: 'Certificate',
-    detail: `${sentCount} certificate(s) in ${emails} email(s); ${failures.length} failure(s)`,
+    detail:
+      `${sentCount} certificate(s) in ${emails} email(s); ${failures.length} failure(s)` +
+      (remaining > 0 ? `; ${remaining} school(s) still queued` : ''),
   });
 
-  return { schools: bySchool.size, emails, certificates: sentCount, failures };
+  return { schools: batch.length, emails, certificates: sentCount, failures, remaining };
 }

@@ -6,7 +6,7 @@ import { clearDispute } from '@/actions/admin';
 import { Card, Empty, Notice, PageHeader, Stat, StatusBadge, TableWrap } from '@/components/ui';
 import { SubmitButton } from '@/components/SubmitButton';
 import { fmtDateTime, fmtTime } from '@/lib/format';
-import { OverridePanel } from './OverridePanel';
+import { OverridePanel, ReopenChainPanel } from './OverridePanel';
 import { LiveRefresher } from './LiveRefresher';
 import { adminPath, eventPath } from '@/lib/paths';
 import { EventIdField } from '@/components/EventIdField';
@@ -176,6 +176,16 @@ export default async function AdminLivePage({
               blueScore={selected.blueScore}
               status={selected.status}
             />
+          </Card>
+        )}
+
+        {selected?.status === 'COMPLETED' && (
+          <Card
+            title="Reopen the bouts after this one"
+            subtitle="Needed only when a correction changes who advances."
+            bodyClassName="card-pad"
+          >
+            <ReopenChainPanel boutId={selected.id} />
           </Card>
         )}
 

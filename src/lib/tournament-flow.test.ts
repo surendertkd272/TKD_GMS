@@ -9,7 +9,7 @@ import {
   createSchool,
   resetDb,
 } from '@/test/factories';
-import { generateDraw, recordBoutResult, walkoverBout, finalizePoomsae } from './tournament';
+import { finalizePoomsae, generateDraw, recordBoutResult, reopenBoutChain, walkoverBout } from './tournament';
 
 let event: Awaited<ReturnType<typeof createEvent>>;
 
@@ -136,6 +136,86 @@ describe('recordBoutResult — full bracket playthrough and medal award', () => 
 
     const goldEntryId = byMedal.GOLD![0]!.entryId;
     expect(entries.map((e) => e.id)).toContain(goldEntryId);
+  });
+
+  it('refuses a correction that would change who advances once the next bout is fought', async () => {
+    // Eight entrants, so the semi can be fought while the final is still open —
+    // otherwise the category finalises and a different guard fires first.
+    const { category } = await kyorugiCategoryWithEntries(8);
+    const referee = await createReferee(event.id);
+    await generateDraw(category.id, 'BELT', referee.id);
+
+    const quarters = await db.bout.findMany({
+      where: { categoryId: category.id, round: 1 },
+      orderBy: { position: 'asc' },
+    });
+    const semis = await db.bout.findMany({
+      where: { categoryId: category.id, round: 2 },
+      orderBy: { position: 'asc' },
+    });
+    for (const bout of [...quarters, ...semis]) {
+      await recordBoutResult({
+        boutId: bout.id, winner: 'RED', resultType: 'POINTS',
+        redScore: 5, blueScore: 2, actorId: referee.id,
+      });
+    }
+    expect((await db.category.findUniqueOrThrow({ where: { id: category.id } })).finalized).toBe(false);
+
+    // The semi this quarter-final feeds has been fought, so flipping it would
+    // strand the superseded athlete in the rest of the bracket.
+    const flip = await recordBoutResult({
+      boutId: quarters[0]!.id, winner: 'BLUE', resultType: 'POINTS',
+      redScore: 2, blueScore: 5, actorId: referee.id,
+    });
+    expect(flip.ok).toBe(false);
+    expect((flip as { error: string }).error).toMatch(/already fought/i);
+
+    // Correcting only the score, with the same winner, is still allowed.
+    const scoreOnly = await recordBoutResult({
+      boutId: quarters[0]!.id, winner: 'RED', resultType: 'POINTS',
+      redScore: 9, blueScore: 1, actorId: referee.id,
+    });
+    expect(scoreOnly.ok).toBe(true);
+  });
+
+  it('reopening the chain lets the corrected winner through', async () => {
+    const { category } = await kyorugiCategoryWithEntries(4);
+    const referee = await createReferee(event.id);
+    await generateDraw(category.id, 'BELT', referee.id);
+
+    const semis = await db.bout.findMany({
+      where: { categoryId: category.id, round: 1 },
+      orderBy: { position: 'asc' },
+    });
+    for (const bout of semis) {
+      await recordBoutResult({
+        boutId: bout.id, winner: 'RED', resultType: 'POINTS',
+        redScore: 5, blueScore: 2, actorId: referee.id,
+      });
+    }
+    const final = await db.bout.findFirstOrThrow({ where: { categoryId: category.id, round: 2 } });
+    await recordBoutResult({
+      boutId: final.id, winner: 'RED', resultType: 'POINTS',
+      redScore: 8, blueScore: 3, actorId: referee.id,
+    });
+    expect((await db.category.findUniqueOrThrow({ where: { id: category.id } })).finalized).toBe(true);
+
+    const reopened = await reopenBoutChain(semis[0]!.id, referee.id);
+    expect(reopened).toMatchObject({ ok: true, reopened: 1 });
+
+    const afterReopen = await db.bout.findUniqueOrThrow({ where: { id: final.id } });
+    expect(afterReopen.status).toBe('SCHEDULED');
+    expect(afterReopen.winnerEntryId).toBeNull();
+
+    // Medals are withdrawn until the bracket is re-run.
+    expect(await db.result.count({ where: { categoryId: category.id } })).toBe(0);
+    expect((await db.category.findUniqueOrThrow({ where: { id: category.id } })).finalized).toBe(false);
+
+    const redo = await recordBoutResult({
+      boutId: semis[0]!.id, winner: 'BLUE', resultType: 'POINTS',
+      redScore: 2, blueScore: 5, actorId: referee.id,
+    });
+    expect(redo.ok).toBe(true);
   });
 
   it('rejects a result once the category is already finalised', async () => {

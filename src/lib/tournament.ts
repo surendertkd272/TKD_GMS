@@ -265,6 +265,107 @@ export type BoutResultInput = {
   actorId: string;
 };
 
+/**
+ * Every bout downstream of this one that has already been fought.
+ *
+ * Correcting a completed bout rewrites the winner into the next bout's corner.
+ * If that bout — or anything after it — has already been played, the rest of the
+ * bracket still records the old athlete, and the medal calculation reads that
+ * stale chain. Walking the feed forward is what lets us refuse instead.
+ */
+export async function playedDownstreamBouts(
+  boutId: string,
+): Promise<{ id: string; roundLabel: string; boutNumber: number | null }[]> {
+  const played: { id: string; roundLabel: string; boutNumber: number | null }[] = [];
+  const seen = new Set<string>([boutId]);
+
+  let cursor = await db.bout.findUnique({
+    where: { id: boutId },
+    select: { nextBoutId: true },
+  });
+
+  while (cursor?.nextBoutId && !seen.has(cursor.nextBoutId)) {
+    seen.add(cursor.nextBoutId);
+    const next = await db.bout.findUnique({
+      where: { id: cursor.nextBoutId },
+      select: { id: true, status: true, roundLabel: true, boutNumber: true, nextBoutId: true },
+    });
+    if (!next) break;
+    if (next.status === 'COMPLETED' || next.status === 'BYE') {
+      played.push({ id: next.id, roundLabel: next.roundLabel, boutNumber: next.boutNumber });
+    }
+    cursor = { nextBoutId: next.nextBoutId };
+  }
+
+  return played;
+}
+
+/**
+ * Reopens a bout and everything after it, so a correction further back in the
+ * bracket can be applied. Clears each bout's result and empties the corner the
+ * superseded winner was advanced into.
+ */
+export async function reopenBoutChain(
+  boutId: string,
+  actorId: string,
+): Promise<{ ok: true; reopened: number } | { ok: false; error: string }> {
+  const bout = await db.bout.findUnique({ where: { id: boutId }, include: { category: true } });
+  if (!bout) return { ok: false, error: 'Bout not found.' };
+
+  const downstream = await playedDownstreamBouts(boutId);
+  const ids = downstream.map((b) => b.id);
+  if (ids.length === 0) return { ok: true, reopened: 0 };
+
+  await db.$transaction(async (tx) => {
+    // The category can no longer be final once part of its bracket is reopened.
+    await tx.result.deleteMany({ where: { categoryId: bout.categoryId } });
+    await tx.category.update({
+      where: { id: bout.categoryId },
+      data: { finalized: false, finalizedAt: null, drawStatus: 'PUBLISHED' },
+    });
+
+    for (const id of ids) {
+      const target = await tx.bout.findUnique({
+        where: { id },
+        select: { nextBoutId: true, nextBoutSlot: true, winnerEntryId: true },
+      });
+
+      await tx.bout.update({
+        where: { id },
+        data: {
+          status: 'SCHEDULED',
+          winnerEntryId: null,
+          resultType: null,
+          redScore: 0,
+          blueScore: 0,
+          redGamJeom: 0,
+          blueGamJeom: 0,
+          completedAt: null,
+        },
+      });
+      await tx.boutRound.deleteMany({ where: { boutId: id } });
+
+      // Pull the superseded winner back out of the bout it fed.
+      if (target?.nextBoutId && target.nextBoutSlot && !ids.includes(target.nextBoutId)) {
+        await tx.bout.update({
+          where: { id: target.nextBoutId },
+          data: target.nextBoutSlot === 'RED' ? { redEntryId: null } : { blueEntryId: null },
+        });
+      }
+    }
+  });
+
+  await logAudit({
+    userId: actorId,
+    action: 'BOUT_CHAIN_REOPENED',
+    entityType: 'Bout',
+    entityId: boutId,
+    detail: `${bout.category.name}: reopened ${ids.length} downstream bout(s) so an earlier result could be corrected`,
+  });
+
+  return { ok: true, reopened: ids.length };
+}
+
 export async function recordBoutResult(
   input: BoutResultInput,
 ): Promise<{ ok: true; categoryFinalized: boolean } | { ok: false; error: string }> {
@@ -277,6 +378,26 @@ export async function recordBoutResult(
 
   const winnerEntryId = input.winner === 'RED' ? bout.redEntryId : bout.blueEntryId;
   if (!winnerEntryId) return { ok: false, error: `No athlete is assigned to the ${input.winner.toLowerCase()} corner.` };
+
+  // Correcting a result that sends a different athlete forward would leave every
+  // bout already fought after this one pointing at the superseded winner. Refuse
+  // rather than silently desynchronise the bracket; the Technical Director can
+  // reopen the affected bouts from live control and then re-enter this one.
+  const changesWhoAdvances = bout.status === 'COMPLETED' && bout.winnerEntryId !== winnerEntryId;
+  if (changesWhoAdvances) {
+    const played = await playedDownstreamBouts(bout.id);
+    if (played.length > 0) {
+      const list = played
+        .map((b) => (b.boutNumber ? `#${b.boutNumber} ${b.roundLabel}` : b.roundLabel))
+        .join(', ');
+      return {
+        ok: false,
+        error:
+          `Changing the winner would contradict ${played.length} bout(s) already fought (${list}). ` +
+          'Reopen them from live control first, then record this result again.',
+      };
+    }
+  }
 
   await db.$transaction(async (tx) => {
     await tx.bout.update({

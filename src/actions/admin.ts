@@ -4,7 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { hashPassword, logAudit, requireAdmin } from '@/lib/auth';
-import { autoSchedule, finalizePoomsae, generateDraw, recordBoutResult, renumberBouts, walkoverBout } from '@/lib/tournament';
+import {
+  autoSchedule,
+  finalizePoomsae,
+  generateDraw,
+  recordBoutResult,
+  renumberBouts,
+  reopenBoutChain,
+  walkoverBout,
+} from '@/lib/tournament';
 import { dispatchCertificates, issueCertificatesForCategory } from '@/lib/certificates';
 import { sendSms } from '@/lib/sms';
 import { categoryCode } from '@/lib/codes';
@@ -14,6 +22,13 @@ import type { SeedStrategy } from '@/lib/bracket';
 import { MIN_PASSWORD_LENGTH } from '@/lib/constants';
 
 export type AdminState = { ok?: boolean; error?: string; message?: string; warnings?: string[] } | null;
+
+/**
+ * Schools per dispatch call. A PDF render plus an SMTP round trip runs to a
+ * second or more each, and a serverless function is killed long before a whole
+ * championship is sent.
+ */
+const CERTIFICATE_BATCH_SCHOOLS = 5;
 
 /**
  * Every admin action carries the event it applies to in its form payload —
@@ -508,6 +523,48 @@ export async function createOfficial(_prev: AdminState, formData: FormData): Pro
   return { ok: true, message: `${input.name} can now sign in to the scoring panel.` };
 }
 
+/**
+ * Sets a new password on a school's login. Schools have no self-serve recovery,
+ * and the registration page tells coaches to ask the organising team — this is
+ * what makes that true.
+ */
+export async function resetSchoolPassword(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const { session, event, error } = await requireEvent(formData);
+  if (error) return { error };
+
+  const schoolId = String(formData.get('schoolId') ?? '');
+  const newPassword = String(formData.get('newPassword') ?? '');
+
+  const school = await db.school.findFirst({ where: { id: schoolId, eventId: event.id } });
+  if (!school) return { error: 'School not found in this event.' };
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    return { error: `The new password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
+  }
+
+  const user = await db.user.findFirst({ where: { schoolId: school.id, eventId: event.id, role: 'SCHOOL' } });
+  if (!user) return { error: 'This school has no login on file. Ask them to register again.' };
+
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(newPassword), active: true },
+  });
+
+  await logAudit({
+    userId: session.userId,
+    eventId: event.id,
+    action: 'SCHOOL_PASSWORD_RESET',
+    entityType: 'School',
+    entityId: school.id,
+    detail: `${school.name} (${school.code}) — login ${user.email}`,
+  });
+
+  revalidateAdmin(event.id, adminPath(event.id, `schools/${school.id}`));
+  return {
+    ok: true,
+    message: `Password updated for ${user.email}. Pass it to the school directly — it is not emailed.`,
+  };
+}
+
 export async function updateOfficial(_prev: AdminState, formData: FormData): Promise<AdminState> {
   const { session, event, error } = await requireEvent(formData);
   if (error) return { error };
@@ -675,6 +732,37 @@ export async function overrideBoutResult(_prev: AdminState, formData: FormData):
   };
 }
 
+/**
+ * Clears the bouts fought after `boutId` so an earlier result can be corrected.
+ * Paired with the guard in recordBoutResult, which refuses a correction that
+ * would change who advances while those bouts still stand.
+ */
+export async function reopenBoutChainAction(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const { session, event, error } = await requireEvent(formData);
+  if (error) return { error };
+
+  const boutId = String(formData.get('boutId') ?? '');
+  const bout = await db.bout.findUnique({
+    where: { id: boutId },
+    include: { category: { select: { eventId: true, name: true } } },
+  });
+  if (!bout || bout.category.eventId !== event.id) return { error: 'Bout not found in this event.' };
+
+  const result = await reopenBoutChain(boutId, session.userId);
+  if (!result.ok) return { error: result.error };
+  if (result.reopened === 0) {
+    return { ok: true, message: 'Nothing after this bout has been fought — you can correct it directly.' };
+  }
+
+  revalidateAdmin(event.id, adminPath(event.id, 'live'), eventPath(event.slug, 'results'), eventPath(event.slug, 'medal-tally'));
+  return {
+    ok: true,
+    message:
+      `Reopened ${result.reopened} bout(s) in ${bout.category.name}. ` +
+      'Record the corrected result now, then re-run the bouts that followed.',
+  };
+}
+
 export async function clearDispute(formData: FormData): Promise<void> {
   const { session, event, error } = await requireEvent(formData);
   if (error) return;
@@ -753,6 +841,7 @@ export async function dispatchCertificatesAction(_prev: AdminState, formData: Fo
       schoolId: schoolId || undefined,
       categoryId: categoryId || undefined,
       onlyUnsent: !resend,
+      limit: CERTIFICATE_BATCH_SCHOOLS,
     },
     session.userId,
   );
@@ -763,9 +852,14 @@ export async function dispatchCertificatesAction(_prev: AdminState, formData: Fo
     return { ok: true, message: 'Nothing to send — every certificate in that selection has already been emailed.' };
   }
 
+  const sent = `Sent ${result.certificates} certificate${result.certificates === 1 ? '' : 's'} in ${result.emails} email${result.emails === 1 ? '' : 's'}.`;
+
   return {
     ok: true,
-    message: `Sent ${result.certificates} certificate${result.certificates === 1 ? '' : 's'} in ${result.emails} email${result.emails === 1 ? '' : 's'}.`,
+    message:
+      result.remaining > 0
+        ? `${sent} ${result.remaining} school${result.remaining === 1 ? '' : 's'} still to go — press Send again to continue. Nothing is sent twice.`
+        : sent,
     warnings: result.failures,
   };
 }

@@ -8,6 +8,7 @@ import { fmtDate, fmtDateTime, money } from '@/lib/format';
 import { AGE_CATEGORY_SHORT, type AgeCategory } from '@/lib/constants';
 import { ReviewSchoolPanel } from './ReviewSchoolPanel';
 import { AdminPaymentPanel } from './AdminPaymentPanel';
+import { ResetSchoolLogin } from './ResetSchoolLogin';
 import { adminPath } from '@/lib/paths';
 
 export const dynamic = 'force-dynamic';
@@ -196,6 +197,10 @@ export default async function AdminSchoolDetail({
               outstanding={Math.max(0, school.amountDue - school.amountPaid)}
               paymentStatus={school.paymentStatus}
             />
+          </Card>
+
+          <Card title="School login">
+            <ResetSchoolLogin schoolId={school.id} email={school.user?.email ?? null} />
           </Card>
 
           <Card title="On file" bodyClassName="card-pad">

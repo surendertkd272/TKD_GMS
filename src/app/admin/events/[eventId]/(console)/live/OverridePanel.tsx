@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { overrideBoutResult, type AdminState } from '@/actions/admin';
+import { overrideBoutResult, reopenBoutChainAction, type AdminState } from '@/actions/admin';
 import { SubmitButton } from '@/components/SubmitButton';
 import { FormMessage } from '@/components/FormMessage';
 import { Field } from '@/components/ui';
@@ -34,8 +34,9 @@ export function OverridePanel({
 
       {status === 'COMPLETED' && (
         <p className="notice-warn">
-          This bout is already completed. Submitting again overwrites the recorded result and
-          re-advances the winner.
+          This bout is already completed. Submitting again overwrites the recorded result. If the
+          winner changes, any bout already fought after this one has to be reopened first —
+          otherwise the rest of the bracket would still record the superseded athlete.
         </p>
       )}
 
@@ -100,6 +101,34 @@ export function OverridePanel({
         confirm="Record this result and advance the bracket?"
       >
         Record result
+      </SubmitButton>
+    </form>
+  );
+}
+
+/**
+ * Sits beside the override form. Kept as a separate form so reopening is always a
+ * deliberate act, never a side effect of recording a result.
+ */
+export function ReopenChainPanel({ boutId }: { boutId: string }) {
+  const [state, action] = useActionState<AdminState, FormData>(reopenBoutChainAction, null);
+
+  return (
+    <form action={action} className="space-y-3">
+      <EventIdField />
+      <FormMessage state={state} />
+      <input type="hidden" name="boutId" value={boutId} />
+      <p className="text-sm text-ink-soft">
+        Clears the result of every bout fought after this one and empties the corners they fed,
+        so an earlier result can be corrected. The category stops being final until those bouts
+        are re-run.
+      </p>
+      <SubmitButton
+        className="btn-ghost"
+        pendingLabel="Reopening…"
+        confirm="Clear the results of every bout after this one? They will all have to be re-run."
+      >
+        Reopen the bouts after this one
       </SubmitButton>
     </form>
   );
