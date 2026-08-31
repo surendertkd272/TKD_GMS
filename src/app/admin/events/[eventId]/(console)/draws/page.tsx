@@ -70,7 +70,7 @@ export default async function AdminDrawsPage({
         <Card bodyClassName="card-pad">
           <form className="grid gap-3 sm:grid-cols-[auto_auto_auto_auto]">
             <select name="event" defaultValue={params.event ?? ''} className="select">
-              <option value="">Both events</option>
+              <option value="">Both disciplines</option>
               <option value="KYORUGI">Kyorugi</option>
               <option value="POOMSAE">Poomsae</option>
             </select>
@@ -104,7 +104,7 @@ export default async function AdminDrawsPage({
                   <tr>
                     <th>Code</th>
                     <th>Category</th>
-                    <th>Event</th>
+                    <th>Discipline</th>
                     <th>Entries</th>
                     <th>Approved</th>
                     <th>Bouts</th>

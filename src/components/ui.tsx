@@ -139,7 +139,9 @@ export function Notice({
 }
 
 export function TableWrap({ children }: { children: ReactNode }) {
-  return <div className="overflow-x-auto">{children}</div>;
+  // Tables carry a min-width, so this is what lets them scroll sideways on a
+  // phone rather than wrapping every cell. The page body never scrolls with it.
+  return <div className="-mx-px overflow-x-auto">{children}</div>;
 }
 
 export function KeyValue({ rows }: { rows: [string, ReactNode][] }) {

@@ -75,10 +75,13 @@ export default async function PublicResultsPage({
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <PageHeader
         title="Results & draws"
-        subtitle="Every published division, its bracket and its final standings. Search for an athlete, or filter by school, event and category."
+        subtitle="Every published division, its bracket and its final standings. Search for an athlete, or filter by school, discipline and category."
       />
 
       <div className="space-y-6">
+        {/* No point offering filters over an empty list — the empty state below
+            already explains what publishes them. */}
+        {(categories.length > 0 || params.q || params.school || params.event || params.cat) && (
         <Card bodyClassName="card-pad">
           <form className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto]">
             <input
@@ -96,8 +99,8 @@ export default async function PublicResultsPage({
                 </option>
               ))}
             </select>
-            <select name="event" defaultValue={params.event ?? ''} className="select" aria-label="Event">
-              <option value="">Both events</option>
+            <select name="event" defaultValue={params.event ?? ''} className="select" aria-label="Discipline">
+              <option value="">Both disciplines</option>
               <option value="KYORUGI">Kyorugi</option>
               <option value="POOMSAE">Poomsae</option>
             </select>
@@ -112,6 +115,7 @@ export default async function PublicResultsPage({
             </button>
           </form>
         </Card>
+        )}
 
         {params.q && (
           <Card
@@ -177,7 +181,7 @@ export default async function PublicResultsPage({
                 <thead>
                   <tr>
                     <th>Division</th>
-                    <th>Event</th>
+                    <th>Discipline</th>
                     <th>Entries</th>
                     <th>Gold</th>
                     <th>Silver</th>

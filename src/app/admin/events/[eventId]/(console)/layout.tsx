@@ -23,7 +23,7 @@ export default async function AdminEventLayout({
   const sections: NavSection[] = [
     {
       items: [
-        { href: ADMIN_EVENTS, label: '← All events' },
+        { href: ADMIN_EVENTS, label: '← All events', back: true },
         { href: adminPath(eventId), label: 'Dashboard', exact: true },
       ],
     },

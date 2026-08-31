@@ -11,6 +11,7 @@ import { categoryCode } from '@/lib/codes';
 import { recalcSchoolFees } from '@/lib/school-service';
 import { adminPath, eventPath } from '@/lib/paths';
 import type { SeedStrategy } from '@/lib/bracket';
+import { MIN_PASSWORD_LENGTH } from '@/lib/constants';
 
 export type AdminState = { ok?: boolean; error?: string; message?: string; warnings?: string[] } | null;
 
@@ -472,7 +473,7 @@ export async function toggleMat(formData: FormData): Promise<void> {
 const officialSchema = z.object({
   name: z.string().trim().min(2, 'Name is required.'),
   email: z.string().trim().toLowerCase().email('Enter a valid email.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`),
   certification: z.string().trim().optional(),
   assignedMatId: z.string().optional(),
   isJury: z.string().optional(),
@@ -521,7 +522,8 @@ export async function updateOfficial(_prev: AdminState, formData: FormData): Pro
   if (!user || user.role !== 'REFEREE' || user.eventId !== event.id) {
     return { error: 'Official not found in this event.' };
   }
-  if (newPassword && newPassword.length < 8) return { error: 'New password must be at least 8 characters.' };
+  if (newPassword && newPassword.length < MIN_PASSWORD_LENGTH)
+    return { error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` };
 
   await db.user.update({
     where: { id: userId },

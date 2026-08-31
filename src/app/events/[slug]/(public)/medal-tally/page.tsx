@@ -72,8 +72,8 @@ export default async function MedalTallyPage({
 
         <Card bodyClassName="card-pad">
           <form className="grid gap-3 sm:grid-cols-[auto_auto_auto_auto_1fr]">
-            <select name="event" defaultValue={params.event ?? ''} className="select" aria-label="Event">
-              <option value="">Both events</option>
+            <select name="event" defaultValue={params.event ?? ''} className="select" aria-label="Discipline">
+              <option value="">Both disciplines</option>
               <option value="KYORUGI">Kyorugi only</option>
               <option value="POOMSAE">Poomsae only</option>
             </select>

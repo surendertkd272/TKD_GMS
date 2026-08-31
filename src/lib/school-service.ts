@@ -45,7 +45,67 @@ export async function recalcSchoolFees(schoolId: string): Promise<void> {
   await db.school.update({ where: { id: schoolId }, data: { amountDue, amountPaid, paymentStatus } });
 }
 
-export type ReadinessIssue = { participantId: string | null; code: string | null; label: string; issue: string };
+export type ReadinessKind = 'PHOTO' | 'NO_ENTRY' | 'NO_CONTACT' | 'DUPLICATE';
+
+export type ReadinessIssue = {
+  participantId: string | null;
+  code: string | null;
+  label: string;
+  issue: string;
+  kind: ReadinessKind;
+};
+
+/** One issue kind and everyone affected by it. */
+export type ReadinessGroup = {
+  kind: ReadinessKind;
+  title: string;
+  detail: string;
+  people: ReadinessIssue[];
+};
+
+const GROUP_COPY: Record<ReadinessKind, { one: string; many: string; detail: string }> = {
+  PHOTO: {
+    one: '1 participant has no photo',
+    many: '%n participants have no photo',
+    detail: 'Their accreditation card will print an empty photo box.',
+  },
+  NO_ENTRY: {
+    one: '1 athlete is in no division',
+    many: '%n athletes are in no division',
+    detail: 'They entered no discipline, or their weight falls outside every configured division.',
+  },
+  NO_CONTACT: {
+    one: '1 participant has no emergency contact',
+    many: '%n participants have no emergency contact',
+    detail: 'A contact number is required before the squad can be submitted.',
+  },
+  DUPLICATE: {
+    one: '1 possible duplicate',
+    many: '%n possible duplicates',
+    detail: 'These entries share a name and date of birth with another.',
+  },
+};
+
+const GROUP_ORDER: ReadinessKind[] = ['DUPLICATE', 'NO_ENTRY', 'NO_CONTACT', 'PHOTO'];
+
+/**
+ * Collapses the flat issue list into one entry per problem. Nine identical
+ * "no photo" rows tell a coach nothing that "9 participants have no photo"
+ * doesn't, and they bury the one issue that differs.
+ */
+export function groupReadinessIssues(issues: ReadinessIssue[]): ReadinessGroup[] {
+  return GROUP_ORDER.flatMap((kind) => {
+    const people = issues.filter((i) => i.kind === kind);
+    if (people.length === 0) return [];
+    const copy = GROUP_COPY[kind];
+    return [{
+      kind,
+      title: people.length === 1 ? copy.one : copy.many.replace('%n', String(people.length)),
+      detail: copy.detail,
+      people,
+    }];
+  });
+}
 
 /** The pre-submission check the spec asks for: duplicates and incomplete entries. */
 export async function schoolReadiness(schoolId: string): Promise<{
@@ -66,13 +126,13 @@ export async function schoolReadiness(schoolId: string): Promise<{
     byNameDob.set(key, [...(byNameDob.get(key) ?? []), p.code]);
 
     if (!p.photoPath) {
-      issues.push({ participantId: p.id, code: p.code, label: p.name, issue: 'No photo — the accreditation card will print an empty photo box.' });
+      issues.push({ participantId: p.id, code: p.code, label: p.name, kind: 'PHOTO', issue: 'No photo — the accreditation card will print an empty photo box.' });
     }
     if (p.personRole === 'ATHLETE' && p.entries.length === 0) {
-      issues.push({ participantId: p.id, code: p.code, label: p.name, issue: 'Entered no event, or the weight falls outside every configured division.' });
+      issues.push({ participantId: p.id, code: p.code, label: p.name, kind: 'NO_ENTRY', issue: 'Entered no division, or the weight falls outside every configured division.' });
     }
     if (!p.emergencyContactPhone) {
-      issues.push({ participantId: p.id, code: p.code, label: p.name, issue: 'No emergency contact number.' });
+      issues.push({ participantId: p.id, code: p.code, label: p.name, kind: 'NO_CONTACT', issue: 'No emergency contact number.' });
     }
   }
 
@@ -82,6 +142,7 @@ export async function schoolReadiness(schoolId: string): Promise<{
         participantId: null,
         code: codes.join(', '),
         label: key.split('|')[0]!,
+        kind: 'DUPLICATE',
         issue: `Possible duplicate — ${codes.length} entries share this name and date of birth.`,
       });
     }

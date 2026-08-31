@@ -5,6 +5,7 @@ import { changePasswordAction, type AccountState } from '@/actions/account';
 import { SubmitButton } from '@/components/SubmitButton';
 import { FormMessage } from '@/components/FormMessage';
 import { Card, Field } from '@/components/ui';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT } from '@/lib/constants';
 
 export function ChangePasswordForm() {
   const [state, action] = useActionState<AccountState, FormData>(changePasswordAction, null);
@@ -30,14 +31,14 @@ export function ChangePasswordForm() {
           label="New password"
           name="newPassword"
           required
-          hint="At least 10 characters. Use something not shared with any other system."
+          hint={`${PASSWORD_HINT} Use something not shared with any other system.`}
         >
           <input
             id="newPassword"
             name="newPassword"
             type="password"
             autoComplete="new-password"
-            minLength={10}
+            minLength={MIN_PASSWORD_LENGTH}
             required
             className="input"
           />
@@ -49,7 +50,7 @@ export function ChangePasswordForm() {
             name="confirmPassword"
             type="password"
             autoComplete="new-password"
-            minLength={10}
+            minLength={MIN_PASSWORD_LENGTH}
             required
             className="input"
           />

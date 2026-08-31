@@ -8,6 +8,7 @@ import { createSession, destroySession } from '@/lib/session';
 import { deriveSchoolCode } from '@/lib/codes';
 import { ADMIN_EVENTS, ADMIN_LOGIN, HOME, schoolPath } from '@/lib/paths';
 import type { Role } from '@/lib/constants';
+import { MIN_PASSWORD_LENGTH } from '@/lib/constants';
 
 export type AuthState = { error?: string; message?: string } | null;
 
@@ -113,7 +114,7 @@ const registerSchema = z
     coachPhone: z.string().trim().optional(),
     contactEmail: z.string().trim().toLowerCase().email('Enter a valid contact email.'),
     contactPhone: z.string().trim().optional(),
-    password: z.string().min(8, 'Password must be at least 8 characters.'),
+    password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`),
     confirmPassword: z.string(),
   })
   .refine((v) => v.password === v.confirmPassword, {

@@ -99,8 +99,19 @@
   }
 
   /* ---- Tables ---- */
+  .scroll-shadow {
+    background:
+      linear-gradient(#fff 30%, rgba(255, 255, 255, 0)) top / 100% 26px no-repeat local,
+      linear-gradient(rgba(255, 255, 255, 0), #fff 70%) bottom / 100% 26px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, rgba(15, 20, 25, 0.13), rgba(15, 20, 25, 0)) top / 100% 11px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, rgba(15, 20, 25, 0.13), rgba(15, 20, 25, 0)) bottom / 100% 11px no-repeat scroll;
+  }
+
   .table {
-    @apply w-full border-collapse text-sm;
+    /* min-width keeps columns aligned on a phone: without it every cell wraps to
+       three or four lines and a ten-row table becomes an unreadable scroll.
+       TableWrap supplies the horizontal scroll. */
+    @apply w-full min-w-[36rem] border-collapse text-sm;
   }
   .table thead th {
     @apply whitespace-nowrap border-b border-surface-line bg-surface-sunk/60 px-3 py-2.5 text-left
@@ -156,13 +167,13 @@
 
   /* ---- Stat tiles ---- */
   .stat {
-    @apply rounded-lg border border-surface-line bg-white px-4 py-3.5;
+    @apply rounded-lg border border-surface-line bg-white px-3 py-3 sm:px-4 sm:py-3.5;
   }
   .stat-value {
-    @apply mt-1 text-2xl font-semibold tabular-nums tracking-tight text-ink;
+    @apply mt-1 text-xl font-semibold tabular-nums tracking-tight text-ink sm:text-2xl;
   }
   .stat-label {
-    @apply text-[11px] font-semibold uppercase tracking-wide text-ink-muted;
+    @apply text-[10px] font-semibold uppercase leading-tight tracking-wide text-ink-muted sm:text-[11px];
   }
 }
 

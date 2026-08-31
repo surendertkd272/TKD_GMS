@@ -77,7 +77,9 @@ export default async function MatQueuePage({
       <div className="space-y-6">
         {params.submitted && <Notice kind="ok">{params.submitted}</Notice>}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        {/* Three short counters: keep them on one row even on a phone — this panel
+            is read at the mat, where vertical space is what matters. */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <Stat label="In progress" value={live.length} />
           <Stat label="Waiting" value={next.length} />
           <Stat label="Completed by you" value={completed.length} />

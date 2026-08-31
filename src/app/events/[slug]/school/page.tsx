@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireSchool } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { schoolReadiness } from '@/lib/school-service';
+import { groupReadinessIssues, schoolReadiness } from '@/lib/school-service';
 import { Card, Empty, KeyValue, Notice, PageHeader, Stat, StatusBadge, TableWrap } from '@/components/ui';
 import { fmtDate, fmtDateTime, money } from '@/lib/format';
 import { AGE_CATEGORY_SHORT, type AgeCategory } from '@/lib/constants';
@@ -106,7 +106,7 @@ export default async function SchoolOverview({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="Participants" value={readiness.counts.participants} hint={`${readiness.counts.athletes} athletes`} />
-          <Stat label="Event entries" value={readiness.counts.entries} hint="Kyorugi + Poomsae" />
+          <Stat label="Division entries" value={readiness.counts.entries} hint="Kyorugi + Poomsae" />
           <Stat
             label="Photos on file"
             value={`${readiness.counts.withPhoto}/${readiness.counts.participants}`}
@@ -126,7 +126,9 @@ export default async function SchoolOverview({
               subtitle="Duplicates and incomplete entries are flagged here before the organising team sees them."
               actions={
                 readiness.issues.length === 0 ? <span className="badge-green">All clear</span> : (
-                  <span className="badge-amber">{readiness.issues.length} to review</span>
+                  <span className="badge-amber">
+                    {groupReadinessIssues(readiness.issues).length} to review
+                  </span>
                 )
               }
               bodyClassName=""
@@ -134,47 +136,41 @@ export default async function SchoolOverview({
               {readiness.issues.length === 0 ? (
                 <div className="card-pad">
                   <p className="text-sm text-ink-soft">
-                    Every participant has a photo, an event entry and an emergency contact. Nothing is
+                    Every participant has a photo, a division entry and an emergency contact. Nothing is
                     blocking submission.
                   </p>
                 </div>
               ) : (
-                <TableWrap>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Participant</th>
-                        <th>ID</th>
-                        <th>Needs attention</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {readiness.issues.slice(0, 12).map((issue, i) => (
-                        <tr key={`${issue.code}-${i}`}>
-                          <td className="font-medium text-ink">{issue.label}</td>
-                          <td className="num text-ink-muted">{issue.code}</td>
-                          <td>{issue.issue}</td>
-                          <td className="text-right">
-                            {issue.participantId && (
+                // One entry per problem, not per occurrence: nine identical "no
+                // photo" rows bury the one issue that actually differs.
+                <ul className="divide-y divide-surface-line">
+                  {groupReadinessIssues(readiness.issues).map((group) => (
+                    <li key={group.kind} className="card-pad">
+                      <p className="text-sm font-semibold text-ink">{group.title}</p>
+                      <p className="mt-0.5 text-sm text-ink-muted">{group.detail}</p>
+                      <ul className="mt-2.5 flex flex-wrap gap-x-1.5 gap-y-1.5">
+                        {group.people.map((person, i) => (
+                          <li key={`${person.code}-${i}`}>
+                            {person.participantId ? (
                               <Link
-                                href={schoolPath(event.slug, `participants/${issue.participantId}`)}
-                                className="btn-ghost btn-sm"
+                                href={schoolPath(event.slug, `participants/${person.participantId}`)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-surface-line px-2 py-1 text-xs text-ink-soft transition-colors hover:border-tkd-red hover:text-tkd-red"
                               >
-                                Fix
+                                {person.label}
+                                <span className="num text-[10px] text-ink-muted">{person.code}</span>
                               </Link>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-md border border-surface-line px-2 py-1 text-xs text-ink-soft">
+                                {person.label}
+                                <span className="num text-[10px] text-ink-muted">{person.code}</span>
+                              </span>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {readiness.issues.length > 12 && (
-                    <p className="px-5 py-3 text-xs text-ink-muted">
-                      and {readiness.issues.length - 12} more…
-                    </p>
-                  )}
-                </TableWrap>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
               )}
             </Card>
 

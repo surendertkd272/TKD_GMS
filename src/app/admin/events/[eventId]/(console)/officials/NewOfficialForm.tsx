@@ -6,6 +6,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { FormMessage } from '@/components/FormMessage';
 import { Card, Field } from '@/components/ui';
 import { EventIdField } from '@/components/EventIdField';
+import { PASSWORD_HINT } from '@/lib/constants';
 
 export function NewOfficialForm({ mats }: { mats: { id: string; name: string }[] }) {
   const [state, action] = useActionState<AdminState, FormData>(createOfficial, null);
@@ -24,7 +25,7 @@ export function NewOfficialForm({ mats }: { mats: { id: string; name: string }[]
           <input id="email" name="email" type="email" required className="input" />
         </Field>
 
-        <Field label="Password" name="password" required hint="At least 8 characters. Share it directly with the official.">
+        <Field label="Password" name="password" required hint={`${PASSWORD_HINT} Share it directly with the official.`}>
           <input id="password" name="password" type="password" required minLength={8} className="input" />
         </Field>
 

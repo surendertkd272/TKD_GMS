@@ -103,7 +103,7 @@ export default async function ParticipantPublicPage({
                 <thead>
                   <tr>
                     <th>Division</th>
-                    <th>Event</th>
+                    <th>Discipline</th>
                     <th>Seed</th>
                     <th>Result</th>
                     <th />

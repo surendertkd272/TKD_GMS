@@ -39,7 +39,7 @@ export default async function SchoolLayout({
       ],
     },
     {
-      title: 'Event',
+      title: 'Competition',
       items: [
         { href: schoolPath(event.slug, 'accreditation'), label: 'Accreditation cards' },
         { href: schoolPath(event.slug, 'draws'), label: 'Draws & schedule' },

@@ -22,7 +22,7 @@ export function NewCategoryForm() {
           <input id="name" name="name" required className="input" placeholder="Cadet Male -69 kg" />
         </Field>
 
-        <Field label="Event" name="event" required>
+        <Field label="Discipline" name="event" required>
           <select id="event" name="event" value={event} onChange={(e) => setEvent(e.target.value)} className="select">
             <option value="KYORUGI">Kyorugi</option>
             <option value="POOMSAE">Poomsae</option>

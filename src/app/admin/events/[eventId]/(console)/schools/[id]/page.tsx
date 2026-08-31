@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { schoolReadiness } from '@/lib/school-service';
+import { groupReadinessIssues, schoolReadiness } from '@/lib/school-service';
 import { Card, KeyValue, Notice, PageHeader, Stat, StatusBadge, TableWrap } from '@/components/ui';
 import { fmtDate, fmtDateTime, money } from '@/lib/format';
 import { AGE_CATEGORY_SHORT, type AgeCategory } from '@/lib/constants';
@@ -76,29 +76,26 @@ export default async function AdminSchoolDetail({
             <Card
               title="Entry quality"
               subtitle="What the school still needs to fix — worth checking before approving."
-              actions={<span className="badge-amber">{readiness.issues.length} flags</span>}
+              actions={
+                <span className="badge-amber">
+                  {groupReadinessIssues(readiness.issues).length} flags
+                </span>
+              }
               bodyClassName=""
             >
-              <TableWrap>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Participant</th>
-                      <th>ID</th>
-                      <th>Flag</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {readiness.issues.slice(0, 15).map((issue, i) => (
-                      <tr key={`${issue.code}-${i}`}>
-                        <td className="font-medium text-ink">{issue.label}</td>
-                        <td className="num text-ink-muted">{issue.code}</td>
-                        <td>{issue.issue}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
+              {/* Grouped the same way the school sees it, so both sides discuss
+                  the same list. */}
+              <ul className="divide-y divide-surface-line">
+                {groupReadinessIssues(readiness.issues).map((group) => (
+                  <li key={group.kind} className="card-pad">
+                    <p className="text-sm font-semibold text-ink">{group.title}</p>
+                    <p className="mt-0.5 text-sm text-ink-muted">{group.detail}</p>
+                    <p className="mt-2 text-xs text-ink-soft">
+                      {group.people.map((p) => p.label).join(' · ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </Card>
           )}
 

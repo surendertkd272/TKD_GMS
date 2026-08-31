@@ -65,7 +65,7 @@ export default async function SchoolResultsPage() {
                       <tr>
                         <th>Athlete</th>
                         <th>Division</th>
-                        <th>Event</th>
+                        <th>Discipline</th>
                         <th>Position</th>
                         <th>Medal</th>
                         <th>Score</th>

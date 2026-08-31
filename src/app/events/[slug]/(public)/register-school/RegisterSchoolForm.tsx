@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { registerSchoolAction, type AuthState } from '@/actions/auth';
 import { SubmitButton } from '@/components/SubmitButton';
 import { Field, Notice } from '@/components/ui';
+import { PASSWORD_HINT } from '@/lib/constants';
 
 export function RegisterSchoolForm({ eventId, disabled }: { eventId: string; disabled: boolean }) {
   const [state, action] = useActionState<AuthState, FormData>(registerSchoolAction, null);
@@ -81,7 +82,7 @@ export function RegisterSchoolForm({ eventId, disabled }: { eventId: string; dis
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Password" name="password" required hint="At least 8 characters.">
+            <Field label="Password" name="password" required hint={PASSWORD_HINT}>
               <input
                 id="password"
                 name="password"

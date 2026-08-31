@@ -84,6 +84,9 @@ export default async function AdminLivePage({
         actions={
           <>
             <LiveRefresher />
+            <Link href={adminPath(eventId, 'display')} className="btn-dark" target="_blank">
+              Open venue display
+            </Link>
             <Link href={eventPath(event.slug, 'results')} className="btn-ghost" target="_blank">
               Public results
             </Link>

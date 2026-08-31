@@ -4,13 +4,14 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { currentUser, hashPassword, logAudit, verifyPassword } from '@/lib/auth';
 import { DEFAULT_ADMIN_PASSWORD } from '@/lib/account';
+import { MIN_PASSWORD_LENGTH } from '@/lib/constants';
 
 export type AccountState = { ok?: boolean; error?: string; message?: string } | null;
 
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, 'Enter your current password.'),
-    newPassword: z.string().min(10, 'The new password must be at least 10 characters.'),
+    newPassword: z.string().min(MIN_PASSWORD_LENGTH, `The new password must be at least ${MIN_PASSWORD_LENGTH} characters.`),
     confirmPassword: z.string(),
   })
   .refine((v) => v.newPassword === v.confirmPassword, {

@@ -1,3 +1,7 @@
+/** One password rule for every account — schools, officials and the admin. */
+export const MIN_PASSWORD_LENGTH = 10;
+export const PASSWORD_HINT = `At least ${MIN_PASSWORD_LENGTH} characters.`;
+
 // Enum-like value sets. SQLite has no native enums, so these are the single source
 // of truth for the String columns in prisma/schema.prisma.
 

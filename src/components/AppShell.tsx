@@ -5,7 +5,18 @@ import { NavLink } from './NavLink';
 import { logoutAction } from '@/actions/auth';
 import { ROLE_LABEL, type Role } from '@/lib/constants';
 
-export type NavItem = { href: string; label: string; exact?: boolean; badge?: number };
+export type NavItem = {
+  href: string;
+  label: string;
+  exact?: boolean;
+  badge?: number;
+  /**
+   * A link out of this section rather than a page within it. Rendered plain, so
+   * it never picks up the active state — "/admin/events" is a prefix of every
+   * admin URL, which otherwise left two items looking selected at once.
+   */
+  back?: boolean;
+};
 export type NavSection = { title?: string; items: NavItem[] };
 
 export function AppShell({
@@ -52,7 +63,7 @@ export function AppShell({
             <Brand eventName={eventName} edition={edition} href={brandHref} compact />
           </div>
 
-          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+          <nav className="scroll-shadow flex-1 space-y-5 overflow-y-auto px-3 py-4">
             {sections.map((section, idx) => (
               <div key={section.title ?? idx}>
                 {section.title && (
@@ -61,16 +72,26 @@ export function AppShell({
                   </p>
                 )}
                 <div className="space-y-0.5">
-                  {section.items.map((item) => (
-                    <NavLink key={item.href} href={item.href} exact={item.exact}>
-                      <span className="flex-1">{item.label}</span>
-                      {item.badge ? (
-                        <span className="rounded-full bg-tkd-red px-1.5 py-0.5 text-[10px] font-bold text-white">
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </NavLink>
-                  ))}
+                  {section.items.map((item) =>
+                    item.back ? (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="nav-link text-ink-muted hover:text-ink"
+                      >
+                        <span className="flex-1">{item.label}</span>
+                      </Link>
+                    ) : (
+                      <NavLink key={item.href} href={item.href} exact={item.exact}>
+                        <span className="flex-1">{item.label}</span>
+                        {item.badge ? (
+                          <span className="rounded-full bg-tkd-red px-1.5 py-0.5 text-[10px] font-bold text-white">
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </NavLink>
+                    ),
+                  )}
                 </div>
               </div>
             ))}
@@ -95,7 +116,7 @@ export function AppShell({
         <main className="min-w-0 flex-1">
           {/* Mobile nav strip */}
           <div className="no-print flex gap-1 overflow-x-auto border-b border-surface-line bg-white px-3 py-2 lg:hidden">
-            {sections.flatMap((s) => s.items).map((item) => (
+            {sections.flatMap((s) => s.items).filter((item) => !item.back).map((item) => (
               <NavLink key={item.href} href={item.href} exact={item.exact}>
                 <span className="whitespace-nowrap text-xs">{item.label}</span>
               </NavLink>

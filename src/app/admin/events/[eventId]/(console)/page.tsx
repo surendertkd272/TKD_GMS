@@ -242,7 +242,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ eve
           <div className="space-y-6">
             <Card
               title="Champion school"
-              subtitle={`Gold ${event.pointsGold} · Silver ${event.pointsSilver} · Bronze ${event.pointsBronze}`}
+              subtitle={`Ranked on points per medal — gold ${event.pointsGold}, silver ${event.pointsSilver}, bronze ${event.pointsBronze}.`}
               bodyClassName="card-pad"
             >
               {!champion ? (

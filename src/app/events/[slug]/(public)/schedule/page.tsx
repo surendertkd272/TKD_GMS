@@ -72,6 +72,7 @@ export default async function PublicSchedulePage({
           </Notice>
         )}
 
+        {(bouts.length > 0 || params.mat || params.school || params.cat) && (
         <Card bodyClassName="card-pad">
           <form className="grid gap-3 sm:grid-cols-[auto_auto_auto_auto]">
             <select name="mat" defaultValue={params.mat ?? ''} className="select" aria-label="Mat">
@@ -101,6 +102,7 @@ export default async function PublicSchedulePage({
             </button>
           </form>
         </Card>
+        )}
 
         {bouts.length === 0 ? (
           <Empty

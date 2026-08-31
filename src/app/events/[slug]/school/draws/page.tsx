@@ -128,7 +128,7 @@ export default async function SchoolDrawsPage() {
                     <tr>
                       <th>Athlete</th>
                       <th>Division</th>
-                      <th>Event</th>
+                      <th>Discipline</th>
                       <th>Seed</th>
                       <th>Draw</th>
                       <th />
