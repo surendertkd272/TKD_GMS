@@ -6,7 +6,7 @@ import { championSchool, eventStats, medalTally } from '@/lib/medals';
 import { detectScheduleConflicts } from '@/lib/tournament';
 import { Card, Empty, MedalPips, Notice, PageHeader, Stat, StatusBadge, TableWrap } from '@/components/ui';
 import { fmtDate, fmtDateTime, money } from '@/lib/format';
-import { adminPath } from '@/lib/paths';
+import { adminPath, eventPath } from '@/lib/paths';
 
 export const metadata = { title: 'Dashboard' };
 export const dynamic = 'force-dynamic';
@@ -256,7 +256,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ eve
                   <div className="mt-3">
                     <MedalPips gold={champion.gold} silver={champion.silver} bronze={champion.bronze} />
                   </div>
-                  <Link href="/medal-tally" className="btn-ghost btn-sm mt-4">
+                  <Link href={eventPath(event.slug, 'medal-tally')} className="btn-ghost btn-sm mt-4">
                     Full tally
                   </Link>
                 </>

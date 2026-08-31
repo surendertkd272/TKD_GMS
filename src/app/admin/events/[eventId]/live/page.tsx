@@ -8,7 +8,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { fmtDateTime, fmtTime } from '@/lib/format';
 import { OverridePanel } from './OverridePanel';
 import { LiveRefresher } from './LiveRefresher';
-import { adminPath } from '@/lib/paths';
+import { adminPath, eventPath } from '@/lib/paths';
 import { EventIdField } from '@/components/EventIdField';
 
 export const metadata = { title: 'Live control' };
@@ -84,7 +84,7 @@ export default async function AdminLivePage({
         actions={
           <>
             <LiveRefresher />
-            <Link href="/results" className="btn-ghost" target="_blank">
+            <Link href={eventPath(event.slug, 'results')} className="btn-ghost" target="_blank">
               Public results
             </Link>
           </>
