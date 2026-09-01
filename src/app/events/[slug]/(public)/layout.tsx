@@ -22,10 +22,16 @@ export default async function PublicEventLayout({
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <header className="no-print sticky top-0 z-30 border-b border-surface-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Brand eventName={event.eventName} edition={event.edition} href={eventPath(slug)} />
+        {/* min-w-0 on both halves, and buttons that may shrink: a long event
+            name plus "Register a school" otherwise forced the header past a
+            phone's width, which widened the whole page and stopped the nav
+            below from clipping its own overflow. */}
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:px-8">
+          <div className="min-w-0 flex-1">
+            <Brand eventName={event.eventName} edition={event.edition} href={eventPath(slug)} />
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {session ? (
               <Link href={homeFor(session)} className="btn-dark btn-sm">
                 My dashboard

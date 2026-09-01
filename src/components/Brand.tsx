@@ -13,8 +13,9 @@ export function Brand({
   compact?: boolean;
   invert?: boolean;
 }) {
+  // min-w-0 is what lets `truncate` below actually engage inside a flex row.
   return (
-    <Link href={href} className="flex items-center gap-2.5">
+    <Link href={href} className="flex min-w-0 items-center gap-2.5">
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[13px] font-bold tracking-tight ${
           invert ? 'bg-white text-tkd-red' : 'bg-tkd-red text-white'
@@ -32,7 +33,7 @@ export function Brand({
           {compact ? 'Taekwondo GMS' : eventName}
         </span>
         <span
-          className={`block text-[11px] leading-tight ${invert ? 'text-white/70' : 'text-ink-muted'}`}
+          className={`block truncate text-[11px] leading-tight ${invert ? 'text-white/70' : 'text-ink-muted'}`}
         >
           Game Management System · {edition}
         </span>
