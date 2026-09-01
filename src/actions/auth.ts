@@ -5,6 +5,12 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { hashPassword, homeFor, logAudit, verifyPassword } from '@/lib/auth';
 import { createSession, destroySession } from '@/lib/session';
+import {
+  checkLoginAllowed,
+  clearLoginAttempts,
+  recordFailedLogin,
+  throttledMessage,
+} from '@/lib/rate-limit';
 import { deriveSchoolCode } from '@/lib/codes';
 import { ADMIN_EVENTS, ADMIN_LOGIN, HOME, schoolPath } from '@/lib/paths';
 import type { Role } from '@/lib/constants';
@@ -28,6 +34,11 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   });
   if (!parsed.success) return { error: parsed.error.issues[0]!.message };
 
+  // Refuse before touching the password, so each further guess costs the caller
+  // the wait rather than a hash comparison.
+  const limit = await checkLoginAllowed(parsed.data.email);
+  if (!limit.allowed) return { error: throttledMessage(limit.retryAfterMinutes) };
+
   const user = await db.user.findFirst({
     where: { email: parsed.data.email, eventId },
     include: { event: { select: { slug: true } } },
@@ -35,8 +46,10 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
 
   // Same message for unknown email and wrong password — no account enumeration.
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+    await recordFailedLogin(parsed.data.email);
     return { error: 'Email or password is incorrect.' };
   }
+  await clearLoginAttempts(parsed.data.email);
   if (!user.active) return { error: 'This account has been disabled. Contact the organising team.' };
 
   await createSession({
@@ -68,13 +81,18 @@ export async function adminLoginAction(_prev: AuthState, formData: FormData): Pr
   });
   if (!parsed.success) return { error: parsed.error.issues[0]!.message };
 
+  const limit = await checkLoginAllowed(parsed.data.email);
+  if (!limit.allowed) return { error: throttledMessage(limit.retryAfterMinutes) };
+
   const user = await db.user.findFirst({
     where: { email: parsed.data.email, role: 'SUPER_ADMIN' },
   });
 
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+    await recordFailedLogin(parsed.data.email);
     return { error: 'Email or password is incorrect.' };
   }
+  await clearLoginAttempts(parsed.data.email);
   if (!user.active) return { error: 'This account has been disabled.' };
 
   await createSession({

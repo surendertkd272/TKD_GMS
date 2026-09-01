@@ -477,3 +477,14 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([eventId, createdAt])
 }
+
+/// One row per failed sign-in, used to throttle guessing. Rows outside the
+/// window are pruned on each check, so this stays small without a cron.
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  /// Lowercased email, or "ip:<address>" — one identifier per thing we limit.
+  identifier String
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+}

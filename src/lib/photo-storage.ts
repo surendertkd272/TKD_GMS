@@ -21,13 +21,15 @@ export class PhotoStorageError extends Error {}
 const MAX_BYTES = 3 * 1024 * 1024;
 const LOCAL_DIR = path.join(process.cwd(), 'public', 'uploads', 'photos');
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const BUCKET = process.env.SUPABASE_PHOTO_BUCKET || 'participant-photos';
+// Read at call time, not import time, so a deployment can be reconfigured
+// without a rebuild — and so this module is testable against a stub endpoint.
+const supabaseUrl = () => process.env.SUPABASE_URL ?? '';
+const supabaseKey = () => process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const bucket = () => process.env.SUPABASE_PHOTO_BUCKET || 'participant-photos';
 
 /** True when object storage is configured; otherwise uploads land on local disk. */
 export function usingObjectStorage(): boolean {
-  return Boolean(SUPABASE_URL && SUPABASE_KEY);
+  return Boolean(supabaseUrl() && supabaseKey());
 }
 
 function extensionFor(type: string): 'jpg' | 'png' {
@@ -42,7 +44,7 @@ export function contentTypeFor(storedPath: string): string {
 }
 
 function objectUrl(key: string): string {
-  return `${SUPABASE_URL.replace(/\/+$/, '')}/storage/v1/object/${BUCKET}/${key}`;
+  return `${supabaseUrl().replace(/\/+$/, '')}/storage/v1/object/${bucket()}/${key}`;
 }
 
 /**
@@ -76,7 +78,7 @@ export async function putPhoto(participantId: string, file: File): Promise<strin
   const response = await fetch(objectUrl(key), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Authorization: `Bearer ${supabaseKey()}`,
       'Content-Type': file.type,
       'x-upsert': 'true',
       'cache-control': '3600',
@@ -114,7 +116,7 @@ export async function readPhoto(
   }
 
   const response = await fetch(objectUrl(storedPath), {
-    headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+    headers: { Authorization: `Bearer ${supabaseKey()}` },
     cache: 'no-store',
   });
   if (!response.ok) return null;
@@ -140,6 +142,6 @@ export async function deletePhoto(storedPath: string | null | undefined): Promis
 
   await fetch(objectUrl(storedPath), {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${SUPABASE_KEY}` },
+    headers: { Authorization: `Bearer ${supabaseKey()}` },
   }).catch(() => {});
 }
