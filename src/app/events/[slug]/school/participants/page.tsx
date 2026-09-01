@@ -129,7 +129,7 @@ export default async function ParticipantsPage({
         ) : (
           <Card bodyClassName="">
             <TableWrap>
-              <table className="table">
+              <table className="table table-cards">
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -147,19 +147,19 @@ export default async function ParticipantsPage({
                 <tbody>
                   {participants.map((p) => (
                     <tr key={p.id}>
-                      <td className="num whitespace-nowrap text-ink-muted">{p.code}</td>
-                      <td className="whitespace-nowrap font-medium text-ink">{p.name}</td>
-                      <td className="text-xs uppercase tracking-wide text-ink-muted">
+                      <td className="num whitespace-nowrap text-ink-muted" data-label="ID">{p.code}</td>
+                      <td className="whitespace-nowrap font-medium text-ink" data-label="Name">{p.name}</td>
+                      <td className="text-xs uppercase tracking-wide text-ink-muted" data-label="Role">
                         {p.personRole.toLowerCase()}
                       </td>
-                      <td className="whitespace-nowrap">
+                      <td className="whitespace-nowrap" data-label="Category">
                         {AGE_CATEGORY_SHORT[p.ageCategory as AgeCategory] ?? p.ageCategory} ·{' '}
                         {p.gender === 'MALE' ? 'M' : 'F'}
                         <span className="ml-1.5 text-xs text-ink-muted">({p.ageAtRef}y)</span>
                       </td>
-                      <td className="num">{p.weightKg} kg</td>
-                      <td className="whitespace-nowrap">{p.beltGrade}</td>
-                      <td>
+                      <td className="num" data-label="Weight">{p.weightKg} kg</td>
+                      <td className="whitespace-nowrap" data-label="Belt">{p.beltGrade}</td>
+                      <td data-label="Divisions entered">
                         {p.entries.length === 0 ? (
                           p.personRole === 'ATHLETE' ? (
                             <span className="badge-amber">No division matched</span>
@@ -176,11 +176,11 @@ export default async function ParticipantsPage({
                           </span>
                         )}
                       </td>
-                      <td>{p.photoPath ? <span className="badge-green">Yes</span> : <span className="badge-amber">Missing</span>}</td>
-                      <td>
+                      <td data-label="Photo">{p.photoPath ? <span className="badge-green">Yes</span> : <span className="badge-amber">Missing</span>}</td>
+                      <td data-label="Status">
                         <StatusBadge status={p.status} />
                       </td>
-                      <td className="text-right">
+                      <td className="text-right" data-label="">
                         <Link href={schoolPath(event.slug, `participants/${p.id}`)} className="btn-ghost btn-sm">
                           Edit
                         </Link>

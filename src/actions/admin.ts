@@ -21,7 +21,15 @@ import { adminPath, eventPath } from '@/lib/paths';
 import type { SeedStrategy } from '@/lib/bracket';
 import { MIN_PASSWORD_LENGTH } from '@/lib/constants';
 
-export type AdminState = { ok?: boolean; error?: string; message?: string; warnings?: string[] } | null;
+export type AdminState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  warnings?: string[];
+  /** Certificate dispatch only: lets the caller keep going until nothing is left. */
+  sent?: number;
+  remaining?: number;
+} | null;
 
 /**
  * Schools per dispatch call. A PDF render plus an SMTP round trip runs to a
@@ -133,10 +141,13 @@ export async function reviewSchool(_prev: AdminState, formData: FormData): Promi
 }
 
 /** Best-effort SMS/WhatsApp ping to whichever phone number the school gave us. */
-async function notifySchool(school: { coachPhone: string | null; contactPhone: string | null }, body: string) {
+async function notifySchool(
+  school: { coachPhone: string | null; contactPhone: string | null; eventId?: string },
+  body: string,
+) {
   const to = school.coachPhone || school.contactPhone;
   if (!to) return;
-  await sendSms({ to, body, channel: 'auto' });
+  await sendSms({ to, body, channel: 'auto', eventId: school.eventId ?? null });
 }
 
 export async function adminRecordPayment(_prev: AdminState, formData: FormData): Promise<AdminState> {
@@ -725,6 +736,7 @@ export async function checkInParticipant(_prev: AdminState, formData: FormData):
 
   if (participant.phone) {
     await sendSms({
+      eventId: event.id,
       to: participant.phone,
       channel: 'auto',
       body: `${participant.name}, you're checked in for the championship. Head to your mat when called.`,
@@ -761,6 +773,7 @@ export async function recordWeighIn(_prev: AdminState, formData: FormData): Prom
 
   if (participant.phone) {
     await sendSms({
+      eventId: event.id,
       to: participant.phone,
       channel: 'auto',
       body: `${participant.name}, your weigh-in is recorded: ${weight}kg.`,
@@ -925,18 +938,22 @@ export async function dispatchCertificatesAction(_prev: AdminState, formData: Fo
   revalidatePath(adminPath(event.id, 'certificates'));
 
   if (result.emails === 0 && result.failures.length === 0) {
-    return { ok: true, message: 'Nothing to send — every certificate in that selection has already been emailed.' };
+    return {
+      ok: true,
+      message: 'Nothing to send — every certificate in that selection has already been emailed.',
+      sent: 0,
+      remaining: 0,
+    };
   }
 
   const sent = `Sent ${result.certificates} certificate${result.certificates === 1 ? '' : 's'} in ${result.emails} email${result.emails === 1 ? '' : 's'}.`;
 
   return {
     ok: true,
-    message:
-      result.remaining > 0
-        ? `${sent} ${result.remaining} school${result.remaining === 1 ? '' : 's'} still to go — press Send again to continue. Nothing is sent twice.`
-        : sent,
+    message: sent,
     warnings: result.failures,
+    sent: result.certificates,
+    remaining: result.remaining,
   };
 }
 

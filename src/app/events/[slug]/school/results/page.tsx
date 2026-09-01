@@ -60,7 +60,7 @@ export default async function SchoolResultsPage() {
             {medalled.length > 0 && (
               <Card title="Medals" bodyClassName="">
                 <TableWrap>
-                  <table className="table">
+                  <table className="table table-cards">
                     <thead>
                       <tr>
                         <th>Athlete</th>
@@ -74,16 +74,16 @@ export default async function SchoolResultsPage() {
                     <tbody>
                       {medalled.map((result) => (
                         <tr key={result.id}>
-                          <td className="font-medium text-ink">{result.entry.participant.name}</td>
-                          <td>{result.category.name}</td>
-                          <td className="text-xs uppercase tracking-wide text-ink-muted">
+                          <td className="font-medium text-ink" data-label="Athlete">{result.entry.participant.name}</td>
+                          <td data-label="Division">{result.category.name}</td>
+                          <td className="text-xs uppercase tracking-wide text-ink-muted" data-label="Discipline">
                             {result.category.discipline.toLowerCase()}
                           </td>
-                          <td className="num">{result.position}</td>
-                          <td>
+                          <td className="num" data-label="Position">{result.position}</td>
+                          <td data-label="Medal">
                             <StatusBadge status={result.medal!} />
                           </td>
-                          <td className="num">{result.score != null ? result.score.toFixed(2) : '—'}</td>
+                          <td className="num" data-label="Score">{result.score != null ? result.score.toFixed(2) : '—'}</td>
                         </tr>
                       ))}
                     </tbody>

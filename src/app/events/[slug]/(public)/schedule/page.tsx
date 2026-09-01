@@ -113,7 +113,7 @@ export default async function PublicSchedulePage({
           [...byDay.entries()].map(([day, dayBouts]) => (
             <Card key={day} title={day} subtitle={`${dayBouts.length} bout${dayBouts.length === 1 ? '' : 's'}`} bodyClassName="">
               <TableWrap>
-                <table className="table">
+                <table className="table table-cards">
                   <thead>
                     <tr>
                       <th>Time</th>
@@ -130,27 +130,27 @@ export default async function PublicSchedulePage({
                   <tbody>
                     {dayBouts.map((bout) => (
                       <tr key={bout.id}>
-                        <td className="num whitespace-nowrap">{bout.scheduledAt ? fmtTime(bout.scheduledAt) : 'TBC'}</td>
-                        <td className="num text-ink-muted">{bout.boutNumber || '—'}</td>
-                        <td className="whitespace-nowrap">{bout.mat?.name ?? '—'}</td>
-                        <td className="text-ink">{bout.category.name}</td>
-                        <td className="whitespace-nowrap text-xs">{bout.roundLabel}</td>
-                        <td className="whitespace-nowrap">
+                        <td className="num whitespace-nowrap" data-label="Time">{bout.scheduledAt ? fmtTime(bout.scheduledAt) : 'TBC'}</td>
+                        <td className="num text-ink-muted" data-label="#">{bout.boutNumber || '—'}</td>
+                        <td className="whitespace-nowrap" data-label="Mat">{bout.mat?.name ?? '—'}</td>
+                        <td className="text-ink" data-label="Division">{bout.category.name}</td>
+                        <td className="whitespace-nowrap text-xs" data-label="Round">{bout.roundLabel}</td>
+                        <td className="whitespace-nowrap" data-label="Red corner">
                           <span className="text-tkd-red">{bout.redEntry?.participant.name ?? 'TBD'}</span>
                           <span className="ml-1.5 text-xs text-ink-muted">
                             {bout.redEntry?.participant.school.code ?? ''}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap">
+                        <td className="whitespace-nowrap" data-label="Blue corner">
                           <span className="text-tkd-blue">{bout.blueEntry?.participant.name ?? 'TBD'}</span>
                           <span className="ml-1.5 text-xs text-ink-muted">
                             {bout.blueEntry?.participant.school.code ?? ''}
                           </span>
                         </td>
-                        <td>
+                        <td data-label="Status">
                           <StatusBadge status={bout.status} />
                         </td>
-                        <td className="text-right">
+                        <td className="text-right" data-label="">
                           <Link href={eventPath(slug, `results/${bout.category.id}`)} className="btn-quiet btn-sm">
                             Bracket
                           </Link>

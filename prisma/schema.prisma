@@ -71,6 +71,7 @@ model Event {
   mats       Mat[]
   users      User[]
   auditLogs  AuditLog[]
+  outbox     OutboxMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -116,6 +117,7 @@ model User {
   refereedBouts Bout[]          @relation("BoutReferee")
   poomsaeScores PoomsaeScore[]
   auditLogs     AuditLog[]
+  passwordResets PasswordReset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -502,4 +504,42 @@ model ParticipantPhoto {
   bytes         Bytes
   contentType   String
   updatedAt     DateTime    @updatedAt
+}
+
+/// Every message the system tried to send. When a transport is configured this
+/// is the delivery record; when one is not, it is the message itself, so the
+/// organiser can still see what would have gone out. Previously this fell back
+/// to writing files under ./storage/outbox, which cannot work on a read-only
+/// serverless filesystem — the same failure that lost participant photos.
+model OutboxMessage {
+  id          String   @id @default(cuid())
+  eventId     String?
+  event       Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  channel     String   // EMAIL | SMS | WHATSAPP
+  recipient   String
+  subject     String?
+  body        String
+  /// "certificates-DTA.pdf (48 KB)" — the file itself is regenerable on demand.
+  attachments String?
+  transport   String   // smtp | twilio | recorded
+  delivered   Boolean  @default(false)
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@index([eventId, createdAt])
+  @@index([channel, createdAt])
+}
+
+/// Single-use, short-lived token behind "forgot password". Only the hash is
+/// stored, so a leaked database row cannot be replayed as a reset link.
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

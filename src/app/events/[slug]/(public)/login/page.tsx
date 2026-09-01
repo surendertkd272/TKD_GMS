@@ -3,7 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 import { LoginForm } from './LoginForm';
 import { currentUser, homeFor } from '@/lib/auth';
 import { getEventBySlug } from '@/lib/db';
-import { registerSchoolPath } from '@/lib/paths';
+import { eventPath, registerSchoolPath } from '@/lib/paths';
+import { Notice } from '@/components/ui';
 
 const ERRORS: Record<string, string> = {
   disabled: 'That account has been disabled. Contact the organising team.',
@@ -17,12 +18,12 @@ export default async function LoginPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
   const session = await currentUser();
   if (session) redirect(homeFor(session));
 
-  const [{ slug }, { error }] = await Promise.all([params, searchParams]);
+  const [{ slug }, { error, reset }] = await Promise.all([params, searchParams]);
   const event = await getEventBySlug(slug);
   if (!event) notFound();
 
@@ -33,9 +34,21 @@ export default async function LoginPage({
         For schools and mat officials of {event.eventName}.
       </p>
 
+      {reset && (
+        <div className="mt-6">
+          <Notice kind="ok">Your password is set. Sign in with it below.</Notice>
+        </div>
+      )}
+
       <div className="mt-8">
         <LoginForm eventId={event.id} initialError={error ? ERRORS[error] : undefined} />
       </div>
+
+      <p className="mt-4 text-sm text-ink-soft">
+        <Link href={`${eventPath(slug)}/forgot-password`} className="font-medium text-tkd-red hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
 
       <p className="mt-6 text-sm text-ink-soft">
         Registering a school for the first time?{' '}

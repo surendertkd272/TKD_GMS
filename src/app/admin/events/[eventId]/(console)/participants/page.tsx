@@ -5,25 +5,28 @@ import { db, getEventById } from '@/lib/db';
 import { Card, Empty, Notice, PageHeader, Stat, StatusBadge, TableWrap } from '@/components/ui';
 import { AGE_CATEGORY_SHORT, type AgeCategory } from '@/lib/constants';
 import { adminPath } from '@/lib/paths';
+import type { Prisma } from '@prisma/client';
+import { Pager } from '@/components/Pager';
 
 export const metadata = { title: 'Participants' };
 export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 100;
 
 export default async function AdminParticipantsPage({
   params: routeParams,
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ q?: string; cat?: string; gender?: string; school?: string; unmatched?: string; role?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; cat?: string; gender?: string; school?: string; unmatched?: string; role?: string }>;
 }) {
   await requireAdmin();
   const [{ eventId }, params] = await Promise.all([routeParams, searchParams]);
   const event = await getEventById(eventId);
   if (!event) notFound();
 
-  const [participants, schools, stats] = await Promise.all([
-    db.participant.findMany({
-      where: { school: { eventId },
+  const where = {
+    school: { eventId },
         ...(params.q
           ? {
               OR: [
@@ -37,14 +40,22 @@ export default async function AdminParticipantsPage({
         ...(params.school ? { schoolId: params.school } : {}),
         ...(params.role ? { personRole: params.role } : {}),
         ...(params.unmatched === '1' ? { personRole: 'ATHLETE', entries: { none: {} } } : {}),
-      },
+  } satisfies Prisma.ParticipantWhereInput;
+
+  const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1);
+
+  const [participants, total, schools, stats] = await Promise.all([
+    db.participant.findMany({
+      where,
       include: {
         school: { select: { code: true, name: true, status: true } },
         entries: { include: { category: { select: { name: true, discipline: true } } } },
       },
       orderBy: [{ school: { name: 'asc' } }, { name: 'asc' }],
-      take: 400,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    db.participant.count({ where }),
     db.school.findMany({ where: { eventId }, select: { id: true, name: true, code: true }, orderBy: { name: 'asc' } }),
     db.participant.groupBy({ by: ['ageCategory'], where: { school: { eventId } }, _count: true }),
   ]);
@@ -126,8 +137,7 @@ export default async function AdminParticipantsPage({
           <Empty title="No participants match" hint="Clear the filters to see the full field." />
         ) : (
           <Card
-            title={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
-            subtitle={participants.length === 400 ? 'Showing the first 400 — narrow the filters to see more.' : undefined}
+            title={`${total} participant${total === 1 ? '' : 's'}`}
             bodyClassName=""
           >
             <TableWrap>
@@ -181,6 +191,13 @@ export default async function AdminParticipantsPage({
                 </tbody>
               </table>
             </TableWrap>
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              basePath={adminPath(eventId, 'participants')}
+              params={params}
+            />
           </Card>
         )}
       </div>

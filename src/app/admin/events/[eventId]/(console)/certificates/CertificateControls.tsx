@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { dispatchCertificatesAction, issueCertificatesAction, type AdminState } from '@/actions/admin';
 import { SubmitButton } from '@/components/SubmitButton';
 import { FormMessage } from '@/components/FormMessage';
@@ -15,7 +15,54 @@ export function CertificateControls({
   schools: { id: string; name: string; code: string; contactEmail: string }[];
 }) {
   const [issueState, issueAction] = useActionState<AdminState, FormData>(issueCertificatesAction, null);
-  const [sendState, sendAction] = useActionState<AdminState, FormData>(dispatchCertificatesAction, null);
+  // Dispatch sends a few schools per call so it fits inside a serverless
+  // function's budget. Keep calling it until nothing is left, rather than
+  // making the organiser press the button once per batch.
+  const [sending, setSending] = useState(false);
+  const [sendState, setSendState] = useState<AdminState>(null);
+  const [progress, setProgress] = useState<{ sent: number; rounds: number } | null>(null);
+
+  async function sendAll(formData: FormData) {
+    setSending(true);
+    setSendState(null);
+    setProgress(null);
+
+    let sent = 0;
+    let rounds = 0;
+    const warnings: string[] = [];
+
+    try {
+      for (;;) {
+        const result = await dispatchCertificatesAction(null, formData);
+        rounds++;
+
+        if (result?.error) {
+          setSendState({ error: result.error });
+          return;
+        }
+        sent += result?.sent ?? 0;
+        if (result?.warnings?.length) warnings.push(...result.warnings);
+        setProgress({ sent, rounds });
+
+        if (!result?.remaining) {
+          setSendState({
+            ok: true,
+            message:
+              sent === 0
+                ? 'Nothing to send — every certificate in that selection has already been emailed.'
+                : `Sent ${sent} certificate${sent === 1 ? '' : 's'} across ${rounds} batch${rounds === 1 ? '' : 'es'}.`,
+            warnings: warnings.length ? warnings : undefined,
+          });
+          return;
+        }
+
+        // Re-sending is a one-off instruction; continuing must not repeat it.
+        formData.delete('resend');
+      }
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -76,7 +123,7 @@ export function CertificateControls({
         title="Email to schools"
         subtitle="One email per school with every outstanding certificate attached as a single PDF."
       >
-        <form action={sendAction} className="space-y-4">
+        <form action={sendAll} className="space-y-4">
           <EventIdField />
           <FormMessage state={sendState} />
 
@@ -101,12 +148,20 @@ export function CertificateControls({
             </span>
           </label>
 
+          {progress && sending && (
+            <p className="text-sm text-ink-soft" aria-live="polite">
+              Sending… {progress.sent} certificate{progress.sent === 1 ? '' : 's'} so far, batch{' '}
+              {progress.rounds}.
+            </p>
+          )}
+
           <SubmitButton
             className="btn-primary w-full"
             pendingLabel="Sending…"
             confirm="Send certificate emails now?"
+            disabled={sending}
           >
-            Send certificate emails
+            {sending ? 'Sending…' : 'Send certificate emails'}
           </SubmitButton>
         </form>
       </Card>

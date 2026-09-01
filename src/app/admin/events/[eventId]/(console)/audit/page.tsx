@@ -3,29 +3,38 @@ import { requireAdmin } from '@/lib/auth';
 import { db, getEventById } from '@/lib/db';
 import { Card, Empty, PageHeader, TableWrap } from '@/components/ui';
 import { fmtDateTime } from '@/lib/format';
+import { Pager } from '@/components/Pager';
+import { adminPath } from '@/lib/paths';
 
 export const metadata = { title: 'Audit trail' };
 export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 100;
 
 export default async function AdminAuditPage({
   params: routeParams,
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ action?: string }>;
+  searchParams: Promise<{ action?: string; page?: string }>;
 }) {
   await requireAdmin();
   const [{ eventId }, params] = await Promise.all([routeParams, searchParams]);
   const event = await getEventById(eventId);
   if (!event) notFound();
 
-  const [logs, actions] = await Promise.all([
+  const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1);
+  const where = { eventId, ...(params.action ? { action: params.action } : {}) };
+
+  const [logs, total, actions] = await Promise.all([
     db.auditLog.findMany({
-      where: { eventId, ...(params.action ? { action: params.action } : {}) },
+      where,
       include: { user: { select: { name: true, role: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 250,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    db.auditLog.count({ where }),
     db.auditLog.groupBy({ by: ['action'], where: { eventId }, _count: true, orderBy: { action: 'asc' } }),
   ]);
 
@@ -57,8 +66,8 @@ export default async function AdminAuditPage({
           <Empty title="Nothing logged yet" hint="Approvals, draws, results, overrides and dispatches all appear here." />
         ) : (
           <Card
-            title={`${logs.length} entr${logs.length === 1 ? 'y' : 'ies'}`}
-            subtitle={logs.length === 250 ? 'Showing the 250 most recent.' : undefined}
+            title={`${total} entr${total === 1 ? 'y' : 'ies'}`}
+            subtitle='Newest first.'
             bodyClassName=""
           >
             <TableWrap>
@@ -96,6 +105,13 @@ export default async function AdminAuditPage({
                 </tbody>
               </table>
             </TableWrap>
+            <Pager
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              basePath={adminPath(eventId, 'audit')}
+              params={params}
+            />
           </Card>
         )}
       </div>

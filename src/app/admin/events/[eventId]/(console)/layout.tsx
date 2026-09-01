@@ -49,6 +49,7 @@ export default async function AdminEventLayout({
       title: 'Output',
       items: [
         { href: adminPath(eventId, 'certificates'), label: 'Certificates' },
+        { href: adminPath(eventId, 'outbox'), label: 'Outbox' },
         { href: adminPath(eventId, 'officials'), label: 'Referees & jury' },
         { href: adminPath(eventId, 'mats'), label: 'Mats' },
       ],

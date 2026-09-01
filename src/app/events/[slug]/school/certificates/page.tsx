@@ -56,7 +56,7 @@ export default async function SchoolCertificatesPage() {
 
             <Card title="Issued certificates" bodyClassName="">
               <TableWrap>
-                <table className="table">
+                <table className="table table-cards">
                   <thead>
                     <tr>
                       <th>Certificate no.</th>
@@ -71,21 +71,21 @@ export default async function SchoolCertificatesPage() {
                   <tbody>
                     {certificates.map((cert) => (
                       <tr key={cert.id}>
-                        <td className="num whitespace-nowrap text-ink-muted">{cert.certNo}</td>
-                        <td className="whitespace-nowrap font-medium text-ink">{cert.participant.name}</td>
-                        <td>
+                        <td className="num whitespace-nowrap text-ink-muted" data-label="Certificate no.">{cert.certNo}</td>
+                        <td className="whitespace-nowrap font-medium text-ink" data-label="Participant">{cert.participant.name}</td>
+                        <td data-label="Type">
                           {cert.type === 'WINNER' ? (
                             <span className="badge-blue">Merit</span>
                           ) : (
                             <span className="badge-neutral">Participation</span>
                           )}
                         </td>
-                        <td>{cert.category?.name ?? '—'}</td>
-                        <td>{cert.medal ? <StatusBadge status={cert.medal} /> : '—'}</td>
-                        <td className="whitespace-nowrap text-xs text-ink-muted">
+                        <td data-label="Division">{cert.category?.name ?? '—'}</td>
+                        <td data-label="Medal">{cert.medal ? <StatusBadge status={cert.medal} /> : '—'}</td>
+                        <td className="whitespace-nowrap text-xs text-ink-muted" data-label="Emailed">
                           {cert.emailedAt ? fmtDateTime(cert.emailedAt) : 'Not sent'}
                         </td>
-                        <td className="text-right">
+                        <td className="text-right" data-label="">
                           <Link href={`/api/certificates/${cert.id}`} className="btn-ghost btn-sm" target="_blank">
                             PDF
                           </Link>

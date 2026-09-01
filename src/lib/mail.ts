@@ -1,7 +1,6 @@
 import 'server-only';
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import nodemailer from 'nodemailer';
+import { db } from './db';
 
 export type Attachment = { filename: string; content: Buffer; contentType?: string };
 
@@ -11,11 +10,12 @@ export type MailInput = {
   text: string;
   html?: string;
   attachments?: Attachment[];
+  /** Scopes the outbox record to an event, so the organiser sees only theirs. */
+  eventId?: string | null;
 };
 
 export type MailResult = { ok: true; transport: 'smtp' | 'file'; ref: string } | { ok: false; error: string };
 
-const OUTBOX = path.join(process.cwd(), 'storage', 'outbox');
 
 function smtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_HOST.trim());
@@ -39,6 +39,33 @@ function getTransporter(): nodemailer.Transporter {
  * attachments to ./storage/outbox so certificate dispatch is fully exercisable
  * (and reviewable) without live mail credentials.
  */
+/** The outbox is the delivery log as well as the fallback, so every attempt lands here. */
+async function recordOutbox(
+  input: MailInput,
+  channel: 'EMAIL',
+  transport: string,
+  delivered: boolean,
+  error: string | null,
+) {
+  const attachments = (input.attachments ?? [])
+    .map((a) => `${a.filename} (${Math.round(a.content.byteLength / 1024)} KB)`)
+    .join(', ');
+
+  return db.outboxMessage.create({
+    data: {
+      eventId: input.eventId ?? null,
+      channel,
+      recipient: input.to,
+      subject: input.subject,
+      body: input.text,
+      attachments: attachments || null,
+      transport,
+      delivered,
+      error,
+    },
+  });
+}
+
 export async function sendMail(input: MailInput): Promise<MailResult> {
   const from = process.env.MAIL_FROM || 'no-reply@localhost';
 
@@ -56,57 +83,28 @@ export async function sendMail(input: MailInput): Promise<MailResult> {
           contentType: a.contentType,
         })),
       });
+      await recordOutbox(input, 'EMAIL', 'smtp', true, null);
       return { ok: true, transport: 'smtp', ref: info.messageId };
     } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : 'SMTP send failed.' };
+      const message = error instanceof Error ? error.message : 'SMTP send failed.';
+      await recordOutbox(input, 'EMAIL', 'smtp', false, message);
+      return { ok: false, error: message };
     }
   }
 
+  // No SMTP configured: record the message so the organiser can see exactly what
+  // would have gone out. Writing it to ./storage/outbox used to be the fallback,
+  // which is impossible on a read-only serverless filesystem.
   try {
-    await mkdir(OUTBOX, { recursive: true });
-    // Deterministic-ish, collision-resistant name without leaking a timestamp API
-    // into the hot path more than once.
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const slug = input.to.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40);
-    const base = `${stamp}__${slug}`;
-
-    const composer = nodemailer.createTransport({ jsonTransport: true });
-    const built = await composer.sendMail({
-      from,
-      to: input.to,
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-    });
-
-    const header = [
-      `From: ${from}`,
-      `To: ${input.to}`,
-      `Subject: ${input.subject}`,
-      `Date: ${new Date().toUTCString()}`,
-      `X-GMS-Transport: file-outbox`,
-      '',
-      input.text,
-      '',
-      `--- attachments (${input.attachments?.length ?? 0}) ---`,
-      ...(input.attachments ?? []).map((a) => `${a.filename} (${a.content.byteLength} bytes)`),
-      '',
-      `--- raw ---`,
-      typeof built.message === 'string' ? built.message : JSON.stringify(built.message),
-    ].join('\n');
-
-    await writeFile(path.join(OUTBOX, `${base}.eml`), header, 'utf8');
-
-    for (const attachment of input.attachments ?? []) {
-      await writeFile(path.join(OUTBOX, `${base}__${attachment.filename}`), attachment.content);
-    }
-
-    return { ok: true, transport: 'file', ref: `${base}.eml` };
+    const row = await recordOutbox(input, 'EMAIL', 'recorded', false, null);
+    return { ok: true, transport: 'file', ref: row.id };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'Could not write to the outbox.' };
+    return { ok: false, error: error instanceof Error ? error.message : 'Could not record the message.' };
   }
 }
 
 export function mailModeLabel(): string {
-  return smtpConfigured() ? `SMTP (${process.env.SMTP_HOST})` : 'Local file outbox (./storage/outbox)';
+  return smtpConfigured()
+    ? `SMTP (${process.env.SMTP_HOST})`
+    : 'Not configured — messages are recorded, not delivered';
 }

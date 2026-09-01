@@ -224,6 +224,7 @@ export async function dispatchCertificates(
     ];
 
     const result = await sendMail({
+      eventId: eventRow.id,
       to,
       subject: `${event.eventName} ${event.edition} — certificates for ${school.name}`,
       text: lines.join('\n'),
@@ -251,6 +252,7 @@ export async function dispatchCertificates(
     const phone = school.coachPhone || school.contactPhone;
     if (phone) {
       await sendSms({
+        eventId: eventRow.id,
         to: phone,
         channel: 'auto',
         body: `${event.eventName}: ${group.length} certificate(s) for ${school.name} are ready — check your email or School Dashboard.`,

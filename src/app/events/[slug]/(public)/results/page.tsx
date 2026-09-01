@@ -127,7 +127,7 @@ export default async function PublicResultsPage({
               <div className="card-pad text-sm text-ink-muted">No approved athlete matches that name.</div>
             ) : (
               <TableWrap>
-                <table className="table">
+                <table className="table table-cards">
                   <thead>
                     <tr>
                       <th>Athlete</th>
@@ -141,21 +141,21 @@ export default async function PublicResultsPage({
                   <tbody>
                     {athleteMatches.map((athlete) => (
                       <tr key={athlete.id}>
-                        <td className="whitespace-nowrap font-medium text-ink">{athlete.name}</td>
-                        <td className="text-xs">{athlete.school.name}</td>
-                        <td className="whitespace-nowrap text-xs">
+                        <td className="whitespace-nowrap font-medium text-ink" data-label="Athlete">{athlete.name}</td>
+                        <td className="text-xs" data-label="School">{athlete.school.name}</td>
+                        <td className="whitespace-nowrap text-xs" data-label="Category">
                           {AGE_CATEGORY_SHORT[athlete.ageCategory as AgeCategory]} ·{' '}
                           {athlete.gender === 'MALE' ? 'M' : 'F'}
                         </td>
-                        <td className="text-xs">{athlete.entries.map((e) => e.category.name).join(', ') || '—'}</td>
-                        <td className="space-x-1">
+                        <td className="text-xs" data-label="Divisions">{athlete.entries.map((e) => e.category.name).join(', ') || '—'}</td>
+                        <td className="space-x-1" data-label="Result">
                           {athlete.entries.some((e) => e.result?.medal)
                             ? athlete.entries
                                 .filter((e) => e.result?.medal)
                                 .map((e) => <StatusBadge key={e.id} status={e.result!.medal!} />)
                             : '—'}
                         </td>
-                        <td className="text-right">
+                        <td className="text-right" data-label="">
                           <Link href={eventPath(slug, `p/${athlete.code}`)} className="btn-ghost btn-sm">
                             Profile
                           </Link>

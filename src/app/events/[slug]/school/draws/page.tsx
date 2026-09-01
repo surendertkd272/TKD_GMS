@@ -69,7 +69,7 @@ export default async function SchoolDrawsPage() {
                 <div className="card-pad text-sm text-ink-muted">No Kyorugi bouts published yet.</div>
               ) : (
                 <TableWrap>
-                  <table className="table">
+                  <table className="table table-cards">
                     <thead>
                       <tr>
                         <th>#</th>
@@ -89,27 +89,27 @@ export default async function SchoolDrawsPage() {
                         const ourBlue = bout.blueEntry?.participant.schoolId === school.id;
                         return (
                           <tr key={bout.id}>
-                            <td className="num text-ink-muted">{bout.boutNumber || '—'}</td>
-                            <td className="num whitespace-nowrap">{fmtDateTime(bout.scheduledAt)}</td>
-                            <td className="whitespace-nowrap">{bout.mat?.name ?? '—'}</td>
-                            <td className="text-ink">{bout.category.name}</td>
-                            <td className="whitespace-nowrap">{bout.roundLabel}</td>
-                            <td className={ourRed ? 'font-semibold text-ink' : ''}>
+                            <td className="num text-ink-muted" data-label="#">{bout.boutNumber || '—'}</td>
+                            <td className="num whitespace-nowrap" data-label="Time">{fmtDateTime(bout.scheduledAt)}</td>
+                            <td className="whitespace-nowrap" data-label="Mat">{bout.mat?.name ?? '—'}</td>
+                            <td className="text-ink" data-label="Category">{bout.category.name}</td>
+                            <td className="whitespace-nowrap" data-label="Round">{bout.roundLabel}</td>
+                            <td className={ourRed ? 'font-semibold text-ink' : ''} data-label="Red corner">
                               {bout.redEntry?.participant.name ?? 'TBD'}
                               <span className="ml-1.5 text-xs text-ink-muted">
                                 {bout.redEntry?.participant.school.code}
                               </span>
                             </td>
-                            <td className={ourBlue ? 'font-semibold text-ink' : ''}>
+                            <td className={ourBlue ? 'font-semibold text-ink' : ''} data-label="Blue corner">
                               {bout.blueEntry?.participant.name ?? 'TBD'}
                               <span className="ml-1.5 text-xs text-ink-muted">
                                 {bout.blueEntry?.participant.school.code}
                               </span>
                             </td>
-                            <td>
+                            <td data-label="Status">
                               <StatusBadge status={bout.status} />
                             </td>
-                            <td className="num">
+                            <td className="num" data-label="Score">
                               {bout.status === 'COMPLETED' ? `${bout.redScore}–${bout.blueScore}` : '—'}
                             </td>
                           </tr>
