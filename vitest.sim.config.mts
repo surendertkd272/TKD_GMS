@@ -1,7 +1,12 @@
 import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
-process.loadEnvFile();
+// Local runs read .env; CI sets the variables directly and has no such file.
+try {
+  process.loadEnvFile();
+} catch {
+  // no .env — the environment is already configured
+}
 
 /**
  * Same simulation, pointed at the development database instead of the isolated

@@ -1,7 +1,12 @@
 import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
-process.loadEnvFile();
+// Local runs read .env; CI sets the variables directly and has no such file.
+try {
+  process.loadEnvFile();
+} catch {
+  // no .env — the environment is already configured
+}
 
 // Duplicated (not imported) from src/test/db-url.ts: the native Vite config loader
 // applies stricter ESM/extension rules than the app's own tsconfig, so this file

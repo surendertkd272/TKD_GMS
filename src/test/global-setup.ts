@@ -4,7 +4,12 @@ import { testDatabaseUrl } from './db-url';
 
 /** Runs once before the whole suite: pushes the schema into an isolated `test` schema. */
 export async function setup() {
-  process.loadEnvFile();
+  // Local runs read .env; CI sets the variables directly and has no such file.
+  try {
+    process.loadEnvFile();
+  } catch {
+    // no .env — the environment is already configured
+  }
   const databaseUrl = testDatabaseUrl(process.env.DATABASE_URL!);
 
   // DIRECT_URL matters too: schema.prisma declares it, so the CLI pushes DDL
