@@ -229,10 +229,12 @@ export function ParticipantForm({
               }
             >
               <div className="flex items-center gap-4">
-                {values.photoPath && (
+                {values.photoPath && values.id && (
+                  // Photos live in a private bucket; this route checks the session
+                  // before serving one. `v` busts the cache after a replacement.
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={values.photoPath}
+                    src={`/api/photos/${values.id}?v=${encodeURIComponent(values.photoPath)}`}
                     alt=""
                     className="h-16 w-[52px] rounded border border-surface-line object-cover"
                   />

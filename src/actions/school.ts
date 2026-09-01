@@ -2,13 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { mkdir, writeFile, unlink } from 'node:fs/promises';
-import path from 'node:path';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { logAudit, requireSchool } from '@/lib/auth';
 import { classifyAge } from '@/lib/age';
 import { nextParticipantCode } from '@/lib/codes';
+import { deletePhoto, putPhoto } from '@/lib/photo-storage';
 import { syncParticipantEntries } from '@/lib/tournament';
 import { schoolPath } from '@/lib/paths';
 import { parseCsvTable } from '@/lib/csv';
@@ -22,8 +21,6 @@ export type SchoolActionState = {
   warnings?: string[];
 } | null;
 
-const PHOTO_DIR = path.join(process.cwd(), 'public', 'uploads', 'photos');
-const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // Institution profile
@@ -119,18 +116,15 @@ async function assertRegistrationOpen(
   return null;
 }
 
+/**
+ * Returns the stored path, or null when no file was supplied — the two cases are
+ * kept apart deliberately. A failed upload throws, so the coach is told; the old
+ * code returned null either way, which is how photos silently vanished in
+ * production for as long as they did.
+ */
 async function savePhoto(participantId: string, file: File | null): Promise<string | null> {
   if (!file || file.size === 0) return null;
-  if (file.size > MAX_PHOTO_BYTES) throw new Error('Photo must be under 3 MB.');
-
-  const type = file.type.toLowerCase();
-  const ext = type === 'image/png' ? 'png' : type === 'image/jpeg' || type === 'image/jpg' ? 'jpg' : null;
-  if (!ext) throw new Error('Photo must be a JPG or PNG file.');
-
-  await mkdir(PHOTO_DIR, { recursive: true });
-  const filename = `${participantId}.${ext}`;
-  await writeFile(path.join(PHOTO_DIR, filename), Buffer.from(await file.arrayBuffer()));
-  return `/uploads/photos/${filename}`;
+  return putPhoto(participantId, file);
 }
 
 export async function createParticipant(
@@ -347,7 +341,7 @@ export async function deleteParticipant(formData: FormData): Promise<void> {
     });
   } else {
     if (participant.photoPath) {
-      await unlink(path.join(process.cwd(), 'public', participant.photoPath.replace(/^\/+/, ''))).catch(() => {});
+      await deletePhoto(participant.photoPath);
     }
     await db.participant.delete({ where: { id: participant.id } });
     await logAudit({

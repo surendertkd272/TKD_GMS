@@ -1,8 +1,7 @@
 import 'server-only';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import QRCode from 'qrcode';
 import type { PDFDocument, PDFImage } from 'pdf-lib';
+import { readPhoto } from '../photo-storage';
 
 export const MM = 2.834645669; // 1 mm in PDF points
 export const A4 = { width: 595.28, height: 841.89 };
@@ -46,13 +45,13 @@ export async function qrPng(data: string, size = 320): Promise<Buffer> {
 export async function embedPhoto(doc: PDFDocument, photoPath: string | null | undefined): Promise<PDFImage | null> {
   if (!photoPath) return null;
   try {
-    const rel = photoPath.replace(/^\/+/, '');
-    const abs = path.join(process.cwd(), 'public', rel);
-    const bytes = await readFile(abs);
-    const lower = abs.toLowerCase();
-    if (lower.endsWith('.png')) return await doc.embedPng(bytes);
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return await doc.embedJpg(bytes);
-    return null;
+    // Cards render on the server, so they read the bucket directly rather than
+    // going back through the authenticated photo route.
+    const photo = await readPhoto(photoPath);
+    if (!photo) return null;
+    return photo.contentType === 'image/png'
+      ? await doc.embedPng(photo.bytes)
+      : await doc.embedJpg(photo.bytes);
   } catch {
     return null;
   }
