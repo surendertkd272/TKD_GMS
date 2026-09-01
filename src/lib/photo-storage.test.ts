@@ -16,6 +16,24 @@ let hits: Hit[] = [];
 const stored = new Map<string, Buffer>();
 let failNext: number | null = null;
 
+const { db } = await import('./db');
+const { createEvent, createSchool, resetDb } = await import('../test/factories');
+
+/** The photo table has a FK to Participant, so the row has to exist. */
+async function seedParticipant(): Promise<string> {
+  const event = await createEvent();
+  const school = await createSchool(event.id);
+  const participant = await db.participant.create({
+    data: {
+      schoolId: school.id, code: `T-${Math.random().toString(36).slice(2, 8)}`,
+      name: 'Photo Subject', dob: new Date('2013-01-01'), gender: 'MALE',
+      ageCategory: 'CADET', ageAtRef: 13, weightKg: 40, beltGrade: 'White',
+      personRole: 'ATHLETE', status: 'APPROVED',
+    },
+  });
+  return participant.id;
+}
+
 const PNG = Buffer.from(
   '89504e470d0a1a0a0000000d494844520000000200000002080600000072b60d24000000164944415478da63fccfc0f09f8112a8c1f4a30d008d6f0691b7f0b1b90000000049454e44ae426082',
   'hex',
@@ -80,7 +98,59 @@ beforeEach(() => {
   failNext = null;
 });
 
+describe('photo storage — database backend (the default)', () => {
+  beforeEach(() => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  });
+
+  it('is the backend when no bucket is configured', () => {
+    expect(usingObjectStorage()).toBe(false);
+  });
+
+  it('round-trips a photo through Postgres and makes no HTTP call', async () => {
+    const participant = await seedParticipant();
+    const path = await putPhoto(participant, file(PNG));
+
+    expect(path).toBe(`participants/${participant}.png`);
+    expect(hits).toHaveLength(0);
+
+    const photo = await readPhoto(path);
+    expect(photo?.contentType).toBe('image/png');
+    expect(photo?.bytes.equals(PNG)).toBe(true);
+  });
+
+  it('replaces an existing photo rather than failing', async () => {
+    const participant = await seedParticipant();
+    await putPhoto(participant, file(PNG));
+    await putPhoto(participant, file(PNG, 'image/jpeg'));
+    expect(await db.participantPhoto.count({ where: { participantId: participant } })).toBe(1);
+  });
+
+  it('deletes the row', async () => {
+    const participant = await seedParticipant();
+    const path = await putPhoto(participant, file(PNG));
+    await deletePhoto(path);
+    expect(await readPhoto(path)).toBeNull();
+  });
+
+  it('refuses a file too large to store', async () => {
+    const participant = await seedParticipant();
+    const big = Buffer.alloc(1024 * 1024 + 1);
+    await expect(putPhoto(participant, file(big))).rejects.toThrow(/too large to store/);
+  });
+
+  it('returns null for a participant with no photo', async () => {
+    expect(await readPhoto('participants/nobody.png')).toBeNull();
+  });
+});
+
 describe('photo storage — object storage branch', () => {
+  beforeEach(() => {
+    process.env.SUPABASE_URL = baseUrl;
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key';
+  });
+
   it('is active once a url and key are configured', () => {
     expect(usingObjectStorage()).toBe(true);
   });

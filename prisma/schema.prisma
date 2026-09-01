@@ -208,6 +208,8 @@ model Participant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  photo       ParticipantPhoto?
+
   @@index([schoolId])
   @@index([ageCategory, gender])
   @@index([status])
@@ -487,4 +489,17 @@ model LoginAttempt {
   createdAt  DateTime @default(now())
 
   @@index([identifier, createdAt])
+}
+
+/// Participant photos, kept in their own table so the blob never rides along
+/// with an ordinary Participant query. Postgres is the default store because it
+/// needs no credential the app does not already have — the previous filesystem
+/// write worked locally and silently failed on the read-only serverless bundle.
+/// Images are downscaled before upload, so rows are tens of kilobytes.
+model ParticipantPhoto {
+  participantId String      @id
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  bytes         Bytes
+  contentType   String
+  updatedAt     DateTime    @updatedAt
 }

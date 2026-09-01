@@ -8,6 +8,7 @@ import { FormMessage } from '@/components/FormMessage';
 import { Card, Field } from '@/components/ui';
 import { AGE_CATEGORY_LABEL, BELT_GRADES, PERSON_ROLES, type AgeCategory } from '@/lib/constants';
 import { schoolPath } from '@/lib/paths';
+import { PhotoField } from '@/components/PhotoField';
 
 export type ParticipantFormValues = {
   id?: string;
@@ -239,13 +240,7 @@ export function ParticipantForm({
                     className="h-16 w-[52px] rounded border border-surface-line object-cover"
                   />
                 )}
-                <input
-                  id="photo"
-                  name="photo"
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  className="input file:mr-3 file:rounded file:border-0 file:bg-surface-sunk file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink-soft"
-                />
+                <PhotoField />
               </div>
             </Field>
 

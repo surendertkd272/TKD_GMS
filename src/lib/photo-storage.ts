@@ -1,6 +1,7 @@
 import 'server-only';
-import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { db } from './db';
 
 /**
  * Where participant photos live.
@@ -19,7 +20,8 @@ import path from 'node:path';
 export class PhotoStorageError extends Error {}
 
 const MAX_BYTES = 3 * 1024 * 1024;
-const LOCAL_DIR = path.join(process.cwd(), 'public', 'uploads', 'photos');
+/** Post-downscale ceiling. The browser sends ~60 KB; this is a backstop. */
+const MAX_STORED_BYTES = 1024 * 1024;
 
 // Read at call time, not import time, so a deployment can be reconfigured
 // without a rebuild — and so this module is testable against a stub endpoint.
@@ -30,6 +32,11 @@ const bucket = () => process.env.SUPABASE_PHOTO_BUCKET || 'participant-photos';
 /** True when object storage is configured; otherwise uploads land on local disk. */
 export function usingObjectStorage(): boolean {
   return Boolean(supabaseUrl() && supabaseKey());
+}
+
+/** "participants/<id>.png" -> "<id>" */
+function participantIdFrom(storedPath: string): string {
+  return path.basename(storedPath).replace(/\.(png|jpe?g)$/i, '');
 }
 
 function extensionFor(type: string): 'jpg' | 'png' {
@@ -61,17 +68,16 @@ export async function putPhoto(participantId: string, file: File): Promise<strin
   const key = `participants/${participantId}.${ext}`;
 
   if (!usingObjectStorage()) {
-    // The local fallback is a development convenience. On a serverless host the
-    // write would fail (or vanish on the next cold start), so say so plainly
-    // rather than let a coach believe the photo was accepted.
-    if (process.env.NODE_ENV === 'production') {
+    if (bytes.byteLength > MAX_STORED_BYTES) {
       throw new PhotoStorageError(
-        'Photo storage is not configured on this deployment, so the photo was not saved. ' +
-          'Ask the organising team to set SUPABASE_SERVICE_ROLE_KEY.',
+        'That photo is too large to store. Please choose a smaller image.',
       );
     }
-    await mkdir(LOCAL_DIR, { recursive: true });
-    await writeFile(path.join(LOCAL_DIR, `${participantId}.${ext}`), bytes);
+    await db.participantPhoto.upsert({
+      where: { participantId },
+      update: { bytes, contentType: file.type },
+      create: { participantId, bytes, contentType: file.type },
+    });
     return key;
   }
 
@@ -102,17 +108,21 @@ export async function readPhoto(
 ): Promise<{ bytes: Buffer; contentType: string } | null> {
   if (!storedPath) return null;
 
-  // Rows written before object storage held a public-folder path.
-  const legacy = storedPath.startsWith('/uploads/');
-  if (legacy || !usingObjectStorage()) {
-    const file = legacy
-      ? path.join(process.cwd(), 'public', storedPath.replace(/^\/+/, ''))
-      : path.join(LOCAL_DIR, path.basename(storedPath));
+  // Rows written before this change hold a public-folder path.
+  if (storedPath.startsWith('/uploads/')) {
     try {
+      const file = path.join(process.cwd(), 'public', storedPath.replace(/^\/+/, ''));
       return { bytes: await readFile(file), contentType: contentTypeFor(file) };
     } catch {
       return null;
     }
+  }
+
+  if (!usingObjectStorage()) {
+    const row = await db.participantPhoto.findUnique({
+      where: { participantId: participantIdFrom(storedPath) },
+    });
+    return row ? { bytes: Buffer.from(row.bytes), contentType: row.contentType } : null;
   }
 
   const response = await fetch(objectUrl(storedPath), {
@@ -131,12 +141,13 @@ export async function readPhoto(
 export async function deletePhoto(storedPath: string | null | undefined): Promise<void> {
   if (!storedPath) return;
 
-  const legacy = storedPath.startsWith('/uploads/');
-  if (legacy || !usingObjectStorage()) {
-    const file = legacy
-      ? path.join(process.cwd(), 'public', storedPath.replace(/^\/+/, ''))
-      : path.join(LOCAL_DIR, path.basename(storedPath));
-    await unlink(file).catch(() => {});
+  if (storedPath.startsWith('/uploads/')) return; // legacy file; nothing to clean up here
+
+  if (!usingObjectStorage()) {
+    // The row also cascades with the participant; this covers replacing a photo.
+    await db.participantPhoto
+      .delete({ where: { participantId: participantIdFrom(storedPath) } })
+      .catch(() => {});
     return;
   }
 
