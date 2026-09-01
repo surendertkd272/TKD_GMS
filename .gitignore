@@ -19,3 +19,6 @@ storage/*
 
 # simulation report, regenerated on each run
 .sim-report.txt
+
+# throwaway QA drivers
+.qa-*.ts
