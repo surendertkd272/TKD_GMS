@@ -5,6 +5,7 @@ import { db, getEventById } from '@/lib/db';
 import { Card, Empty, PageHeader, Stat, StatusBadge, TableWrap } from '@/components/ui';
 import { fmtDate, money } from '@/lib/format';
 import { adminPath } from '@/lib/paths';
+import { NewSchoolForm } from './NewSchoolForm';
 
 export const metadata = { title: 'Schools' };
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,10 @@ export default async function AdminSchoolsPage({
         subtitle="Approving a school releases every accreditation card for its squad."
       />
 
+
+      <div className="mb-6">
+        <NewSchoolForm />
+      </div>
       <div className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-4">
           <Stat label="Total" value={schools.length} />

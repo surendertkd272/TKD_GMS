@@ -110,9 +110,15 @@ export async function adminLoginAction(_prev: AuthState, formData: FormData): Pr
   redirect(ADMIN_EVENTS);
 }
 
-export async function logoutAction(): Promise<void> {
+export async function logoutAction(formData?: FormData): Promise<void> {
   await destroySession();
-  redirect(HOME);
+
+  // Callers may ask to come back somewhere specific — signing out in order to
+  // register a school should return to that event's form, not the directory,
+  // which will not list an unpublished event at all.
+  const next = String(formData?.get('next') ?? '');
+  const safe = next.startsWith('/') && !next.startsWith('//');
+  redirect(safe ? next : HOME);
 }
 
 export async function adminLogoutAction(): Promise<void> {

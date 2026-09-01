@@ -1,21 +1,72 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { RegisterSchoolForm } from './RegisterSchoolForm';
 import { currentUser, homeFor } from '@/lib/auth';
 import { getEventBySlug } from '@/lib/db';
 import { fmtDate } from '@/lib/format';
 import { Notice } from '@/components/ui';
-import { eventLoginPath } from '@/lib/paths';
+import { eventLoginPath, eventPath, registerSchoolPath } from '@/lib/paths';
+import { logoutAction } from '@/actions/auth';
 
 export const metadata = { title: 'Register your school' };
 
 export default async function RegisterSchoolPage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await currentUser();
-  if (session) redirect(homeFor(session));
-
   const { slug } = await params;
   const event = await getEventBySlug(slug);
   if (!event) notFound();
+
+  // Anyone already signed in used to be bounced silently to their own home,
+  // which made the "Register your school" button look broken — the organiser
+  // pressed it and simply landed back on the events list. Explain instead, and
+  // say what to do next.
+  if (session) {
+    const alreadyInThisEvent = session.eventId === event.id;
+
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-12 sm:px-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Register your school</h1>
+
+        <div className="mt-6">
+          <Notice kind="info">
+            {session.role === 'SUPER_ADMIN' ? (
+              <>
+                <strong>You are signed in as the organiser.</strong> This form creates a school
+                login, so it is meant for coaches. To enter a school yourself — a walk-in or a phone
+                entry — use <strong>Add a school</strong> on the event&apos;s Schools page.
+              </>
+            ) : alreadyInThisEvent ? (
+              <>
+                <strong>You already have an account for {event.eventName}.</strong> Open your
+                dashboard to manage entries, or sign out to register a different school.
+              </>
+            ) : (
+              <>
+                <strong>You are signed in for a different event.</strong> Each event keeps its own
+                accounts, so registering here needs you to sign out first — your other account is
+                not affected.
+              </>
+            )}
+          </Notice>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          <Link href={homeFor(session)} className="btn-primary btn-sm">
+            {session.role === 'SUPER_ADMIN' ? 'Go to the organiser console' : 'Open my dashboard'}
+          </Link>
+          <form action={logoutAction}>
+            <input type="hidden" name="next" value={registerSchoolPath(slug)} />
+            <button type="submit" className="btn-ghost btn-sm">
+              Sign out and register a school
+            </button>
+          </form>
+          <Link href={eventPath(slug)} className="btn-quiet btn-sm">
+            Back to {event.eventName}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-12 sm:px-6">

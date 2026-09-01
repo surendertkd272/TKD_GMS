@@ -15,7 +15,7 @@ import {
 } from '@/lib/tournament';
 import { dispatchCertificates, issueCertificatesForCategory } from '@/lib/certificates';
 import { sendSms } from '@/lib/sms';
-import { categoryCode } from '@/lib/codes';
+import { categoryCode, deriveSchoolCode } from '@/lib/codes';
 import { recalcSchoolFees } from '@/lib/school-service';
 import { adminPath, eventPath } from '@/lib/paths';
 import type { SeedStrategy } from '@/lib/bracket';
@@ -528,6 +528,82 @@ export async function createOfficial(_prev: AdminState, formData: FormData): Pro
  * and the registration page tells coaches to ask the organising team — this is
  * what makes that true.
  */
+const adminSchoolSchema = z.object({
+  schoolName: z.string().trim().min(3, 'School name is required.'),
+  coachName: z.string().trim().min(2, 'Name of the coach / teacher-in-charge is required.'),
+  contactEmail: z.string().trim().toLowerCase().email('Enter a valid contact email.'),
+  contactPhone: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  password: z.string().min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`),
+});
+
+/**
+ * Adds a school on the organiser's behalf — a walk-in entry, a phone
+ * registration, or simply setting up before the link goes out. Self-registration
+ * covers the coach who signs up themselves; this covers everyone else, and
+ * without it an organiser had no way to create a school at all.
+ */
+export async function createSchoolAsAdmin(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const { session, event, error } = await requireEvent(formData);
+  if (error) return { error };
+
+  const parsed = adminSchoolSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]!.message };
+  const input = parsed.data;
+
+  const duplicateName = await db.school.findFirst({
+    where: { eventId: event.id, name: { equals: input.schoolName } },
+  });
+  if (duplicateName) return { error: `"${input.schoolName}" is already entered for this event.` };
+
+  const duplicateEmail = await db.user.findFirst({
+    where: { eventId: event.id, email: input.contactEmail },
+  });
+  if (duplicateEmail) return { error: 'That email already has a login for this event.' };
+
+  const code = await deriveSchoolCode(event.id, input.schoolName);
+
+  const school = await db.school.create({
+    data: {
+      eventId: event.id,
+      code,
+      name: input.schoolName,
+      city: input.city || null,
+      coachName: input.coachName,
+      contactEmail: input.contactEmail,
+      contactPhone: input.contactPhone || null,
+      // Entered by the organiser, so it needs no second approval.
+      status: 'APPROVED',
+    },
+  });
+
+  await db.user.create({
+    data: {
+      eventId: event.id,
+      schoolId: school.id,
+      email: input.contactEmail,
+      passwordHash: await hashPassword(input.password),
+      name: input.coachName,
+      role: 'SCHOOL',
+    },
+  });
+
+  await logAudit({
+    userId: session.userId,
+    eventId: event.id,
+    action: 'SCHOOL_ADDED_BY_ADMIN',
+    entityType: 'School',
+    entityId: school.id,
+    detail: `${school.name} (${school.code}) entered by the organising team`,
+  });
+
+  revalidateAdmin(event.id, adminPath(event.id, 'schools'));
+  return {
+    ok: true,
+    message: `${school.name} added as ${school.code}. Give the coach ${input.contactEmail} and the password you chose — it is not emailed.`,
+  };
+}
+
 export async function resetSchoolPassword(_prev: AdminState, formData: FormData): Promise<AdminState> {
   const { session, event, error } = await requireEvent(formData);
   if (error) return { error };
